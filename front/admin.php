@@ -12,7 +12,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         $action = (string) ($_POST['action'] ?? '');
         if ($action === 'source_save') {
             $id = PluginAssignatureSource::save($_POST);
-            assignature_flash('Fonte salva. Identificador #' . $id . '.');
+            try {
+                $count = PluginAssignatureRequest::syncSource(PluginAssignatureSource::get($id));
+                assignature_flash('Fonte salva. ' . $count . ' pedido(s) sincronizado(s).');
+            } catch (Throwable $e) {
+                assignature_flash('Fonte salva, mas a sincronização falhou: ' . $e->getMessage(), false);
+            }
         } elseif ($action === 'source_sync') {
             $source = PluginAssignatureSource::get((int) ($_POST['source_id'] ?? 0));
             if ($source === null) {
@@ -75,7 +80,8 @@ Html::header('Administração — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 
             <?php if ($sources === []): ?><p class="as-empty-inline">Nenhuma fonte cadastrada. Comece pelo Tralla.</p><?php endif; ?>
             <?php foreach ($sources as $source): ?>
                 <div class="as-source-row">
-                    <div><strong><?= assignature_h($source['name']) ?></strong><small><?= assignature_h($source['slug']) ?> · <?= assignature_h($source['adapter']) ?></small>
+                    <div><strong><?= assignature_h($source['name']) ?></strong><small><?= assignature_h($source['slug']) ?> · <?= assignature_h($source['adapter']) ?></small><small><?= assignature_h($source['endpoint_url']) ?></small>
+                        <?php if (!empty($source['last_sync'])): ?><small>Última tentativa: <?= assignature_h($source['last_sync']) ?></small><?php endif; ?>
                         <?php if ((string) ($source['last_error'] ?? '') !== ''): ?><small class="as-error"><?= assignature_h($source['last_error']) ?></small><?php endif; ?></div>
                     <div class="as-inline-actions"><a class="as-button as-button-light as-button-small" href="?source=<?= (int) $source['id'] ?>">Editar</a>
                         <form method="post"><input type="hidden" name="action" value="source_sync"><input type="hidden" name="source_id" value="<?= (int) $source['id'] ?>"><?= assignature_csrf_field() ?><button class="as-button as-button-small">Sincronizar</button></form></div>

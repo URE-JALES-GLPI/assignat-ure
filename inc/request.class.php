@@ -63,6 +63,27 @@ class PluginAssignatureRequest
         return $result;
     }
 
+    /** Atualiza pedidos ao abrir o painel, mesmo sem o cron do GLPI configurado. */
+    public static function syncDueSources(int $userId): void
+    {
+        foreach (PluginAssignatureSource::all(true) as $source) {
+            $sourceId = (int) $source['id'];
+            if (!PluginAssignatureScope::canSee($userId, $sourceId, 'pending')
+                && !PluginAssignatureScope::canSee($userId, $sourceId, 'done')) {
+                continue;
+            }
+            $lastAttempt = strtotime((string) ($source['last_sync'] ?? '')) ?: 0;
+            if ($lastAttempt >= time() - 60) {
+                continue;
+            }
+            try {
+                self::syncSource($source);
+            } catch (Throwable $e) {
+                // A falha fica registrada na fonte e é exibida ao administrador.
+            }
+        }
+    }
+
     public static function syncSource(array $source): int
     {
         global $DB;
@@ -90,9 +111,6 @@ class PluginAssignatureRequest
                     }
                     $externalId = trim((string) ($item['id'] ?? ''));
                     if ($externalId === '' || mb_strlen($externalId) > 100) {
-                        continue;
-                    }
-                    if ($isTralla && (int) ($item['family_id'] ?? $item['id']) !== (int) $item['id']) {
                         continue;
                     }
                     $seen[$externalId] = true;
@@ -138,7 +156,9 @@ class PluginAssignatureRequest
             ], ['id' => (int) $source['id']]);
             return $count;
         } catch (Throwable $e) {
-            $DB->update(PluginAssignatureSource::TABLE, ['last_error' => $e->getMessage()], ['id' => (int) $source['id']]);
+            $DB->update(PluginAssignatureSource::TABLE, [
+                'last_sync' => assignature_now(), 'last_error' => $e->getMessage(),
+            ], ['id' => (int) $source['id']]);
             throw $e;
         }
     }

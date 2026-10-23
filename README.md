@@ -20,12 +20,12 @@ Na instalação, o perfil `Super-Admin` recebe acesso de visualização e admini
 
 1. No Tralla, abra **Configurações** e copie o token da seção Assignat-ure.
 2. No Assignat-ure, adicione uma fonte com identificador `tralla`, adaptador **Tralla**, URL `https://SEU-GLPI/plugins/tralla/front/assignature.php` e o token copiado.
-3. Sincronize a fonte. As retiradas aprovadas aparecem como pedidos pendentes.
+3. Salve a fonte. O Assignat-ure sincroniza imediatamente, tenta novamente ao abrir o painel (no máximo uma vez por minuto) e também pela tarefa automática. Cada card na lista de retirada aparece como um pedido pendente. Se a conexão falhar, o erro aparece na administração e no painel do administrador.
 4. No Tralla, defina a URL do Assignat-ure como `https://SEU-GLPI/plugins/assignature/front/request.php`. O Tralla acrescenta `?card=ID` ao link do card.
 5. Conceda ao usuário o acesso por perfil e a regra para a fonte Tralla. Para poder coletar uma assinatura, marque **Ver pendentes** e **Pode assinar**.
 
-Após a assinatura, o Assignat-ure salva o comprovante e envia um retorno autenticado ao Tralla. O Tralla conclui automaticamente a retirada de toda a família do card. Se a origem estiver indisponível, o comprovante permanece salvo, o estado do retorno aparece na administração e a tarefa automática tenta reenviá-lo.
-Quando um card foi separado em uma família, o Assignat-ure cria um único pedido para o card principal e o mesmo comprovante é aberto pelos demais cards da família.
+Após a assinatura, o Assignat-ure salva o comprovante e envia um retorno autenticado ao Tralla. O Tralla conclui automaticamente apenas a retirada do card assinado. Se a origem estiver indisponível, o comprovante permanece salvo, o estado do retorno aparece na administração e a tarefa automática tenta reenviá-lo.
+Cada card na lista de retirada gera seu próprio pedido e comprovante, inclusive quando pertence à mesma família de cards.
 
 ## Contrato de integração genérica
 
