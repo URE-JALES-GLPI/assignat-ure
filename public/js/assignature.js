@@ -131,6 +131,72 @@
         });
     }
 
+    var technicianForm = document.querySelector('[data-technician-form]');
+    if (technicianForm) {
+        var technicianCanvas = technicianForm.querySelector('[data-technician-canvas]');
+        var technicianSignature = technicianForm.querySelector('[data-technician-signature]');
+        var technicianContext = technicianCanvas.getContext('2d');
+        var technicianSigned = false;
+        var technicianDrawing = false;
+        var technicianExisting = !!technicianForm.querySelector('.as-technician-preview');
+        var technicianValidDocument = bindDocument(technicianForm);
+        function sizeTechnicianCanvas() {
+            var rect = technicianCanvas.getBoundingClientRect();
+            var ratio = Math.max(1, Math.min(window.devicePixelRatio || 1, 3));
+            technicianCanvas.width = Math.round(rect.width * ratio);
+            technicianCanvas.height = Math.round(180 * ratio);
+            technicianContext.scale(ratio, ratio);
+            technicianContext.lineWidth = 2.6;
+            technicianContext.lineCap = 'round';
+            technicianContext.lineJoin = 'round';
+            technicianContext.strokeStyle = '#17223b';
+            technicianSigned = false;
+        }
+        sizeTechnicianCanvas();
+        technicianCanvas.addEventListener('pointerdown', function (event) {
+            event.preventDefault();
+            technicianCanvas.setPointerCapture(event.pointerId);
+            var rect = technicianCanvas.getBoundingClientRect();
+            technicianContext.beginPath();
+            technicianContext.moveTo(event.clientX - rect.left,
+                (event.clientY - rect.top) * 180 / rect.height);
+            technicianContext.lineTo(event.clientX - rect.left + 0.1,
+                (event.clientY - rect.top) * 180 / rect.height + 0.1);
+            technicianContext.stroke();
+            technicianDrawing = true;
+            technicianSigned = true;
+        });
+        technicianCanvas.addEventListener('pointermove', function (event) {
+            if (!technicianDrawing) { return; }
+            event.preventDefault();
+            var rect = technicianCanvas.getBoundingClientRect();
+            technicianContext.lineTo(event.clientX - rect.left,
+                (event.clientY - rect.top) * 180 / rect.height);
+            technicianContext.stroke();
+        });
+        technicianCanvas.addEventListener('pointerup', function () { technicianDrawing = false; });
+        technicianCanvas.addEventListener('pointercancel', function () { technicianDrawing = false; });
+        technicianForm.querySelector('[data-technician-clear]').addEventListener('click', function () {
+            technicianContext.clearRect(0, 0, technicianCanvas.width, technicianCanvas.height);
+            technicianSigned = false;
+            technicianSignature.value = '';
+        });
+        technicianForm.addEventListener('submit', function (event) {
+            var document = technicianForm.querySelector('[name="document"]');
+            if (document.value && !technicianValidDocument()) {
+                event.preventDefault();
+                alert('Confira o documento. O CPF precisa ser válido.');
+                return;
+            }
+            if (!technicianSigned && !technicianExisting) {
+                event.preventDefault();
+                alert('Desenhe a assinatura do técnico antes de salvar.');
+                return;
+            }
+            if (technicianSigned) { technicianSignature.value = technicianCanvas.toDataURL('image/png'); }
+        });
+    }
+
     var form = document.querySelector('[data-batch-form]');
     if (!form) { return; }
     var flow = document.querySelector('[data-sign-flow]');
@@ -144,6 +210,12 @@
     var error = form.querySelector('[data-signature-error]');
     var signer = form.querySelector('[name="signer_name"]');
     var documentInput = form.querySelector('[data-document-input]');
+    var technicianSelect = form.querySelector('[name="technician_profiles_id"]');
+    technicianSelect.addEventListener('change', function () {
+        form.querySelectorAll('[data-technician-detail]').forEach(function (detail) {
+            detail.hidden = detail.getAttribute('data-technician-detail') !== technicianSelect.value;
+        });
+    });
     var validDocument = bindDocument(form);
     var currentStep = 0;
     var signed = false;
@@ -219,7 +291,6 @@
         choices.hidden = true;
         flow.hidden = false;
         flow.querySelector('[data-flow-title]').textContent = method === 'digital' ? 'Assinar agora' : 'Assinar depois';
-        form.querySelector('[data-paper-person]').hidden = method !== 'paper';
         form.querySelector('[data-steps]').hidden = method !== 'digital';
         signer.required = method === 'digital';
         documentInput.required = method === 'digital';
@@ -229,7 +300,7 @@
         if (method === 'paper') {
             next.hidden = true;
             submit.hidden = false;
-            submit.textContent = 'Gerar termo para impressão';
+            submit.textContent = 'Gerar termo e enviar à impressora';
         } else {
             submit.textContent = 'Concluir assinatura do lote';
         }
@@ -242,9 +313,6 @@
         flow.hidden = true;
         choices.hidden = false;
         methodInput.value = '';
-    });
-    form.querySelector('[data-registered-signer]').addEventListener('change', function (event) {
-        signer.value = event.target.value;
     });
     next.addEventListener('click', function () {
         var field = steps[currentStep].querySelector('input[required], select[required]');

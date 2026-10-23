@@ -3,6 +3,7 @@ if (!defined('GLPI_ROOT')) {
     die('Acesso direto não permitido.');
 }
 require_once __DIR__ . '/request.class.php';
+require_once __DIR__ . '/technician.class.php';
 
 /** Uma assinatura ou um termo em papel para vários pedidos. */
 class PluginAssignatureBatch
@@ -35,18 +36,16 @@ class PluginAssignatureBatch
         return (string) $user->getFriendlyName();
     }
 
-    public static function availableUsers(): array
+    public static function technicianName(array $batch): string
     {
-        global $DB;
-        $users = [];
-        foreach ($DB->request([
-            'SELECT' => ['id', 'name', 'realname', 'firstname'], 'FROM' => 'glpi_users',
-            'WHERE' => ['is_active' => 1], 'ORDER' => 'realname ASC', 'LIMIT' => 2000,
-        ]) as $row) {
-            $name = trim((string) $row['firstname'] . ' ' . (string) $row['realname']);
-            $users[(int) $row['id']] = $name !== '' ? $name : (string) $row['name'];
-        }
-        return $users;
+        return (string) ($batch['technician_name'] ?? '') !== ''
+            ? (string) $batch['technician_name'] : self::technician((int) $batch['technician_users_id']);
+    }
+
+    public static function technicianDocument(array $batch): string
+    {
+        $encrypted = (string) ($batch['technician_document_encrypted'] ?? '');
+        return $encrypted === '' ? '' : (string) (new GLPIKey())->decrypt($encrypted);
     }
 
     public static function document(string $type, string $value): string
@@ -143,7 +142,10 @@ class PluginAssignatureBatch
         if (!in_array($method, ['digital', 'paper'], true)) {
             throw new RuntimeException('Escolha como a pessoa vai assinar.');
         }
-        self::technician($technicianId);
+        $profile = PluginAssignatureTechnician::get($technicianId);
+        if ($profile === null || (int) $profile['is_active'] !== 1) {
+            throw new RuntimeException('Selecione uma assinatura de técnico cadastrada e ativa.');
+        }
         $signerName = trim($signerName);
         if (mb_strlen($signerName) > 255 || ($method === 'digital' && $signerName === '')) {
             throw new RuntimeException('Informe o nome completo de quem retira.');
@@ -152,9 +154,24 @@ class PluginAssignatureBatch
             ? self::document($documentType, $document) : '';
         $png = $method === 'digital' ? self::signaturePng($image) : '';
         $prepared = self::prepare($ids, $userId);
+        $sourceIds = [];
+        foreach (array_keys($prepared) as $id) {
+            $request = PluginAssignatureRequest::get((int) $id);
+            $sourceIds[] = (int) $request['sources_id'];
+        }
+        if (array_diff(array_unique($sourceIds), PluginAssignatureTechnician::sourceIds($technicianId)) !== []) {
+            throw new RuntimeException('Este técnico não está liberado para todos os plugins do lote.');
+        }
         $now = assignature_now();
         $DB->beginTransaction();
         try {
+            $DB->doQuery('SELECT `id` FROM `' . PluginAssignatureTechnician::TABLE
+                . '` WHERE `id` = ' . $technicianId . ' FOR UPDATE');
+            $profile = PluginAssignatureTechnician::get($technicianId);
+            if ($profile === null || (int) $profile['is_active'] !== 1
+                || array_diff(array_unique($sourceIds), PluginAssignatureTechnician::sourceIds($technicianId)) !== []) {
+                throw new RuntimeException('O cadastro do técnico mudou. Escolha novamente antes de assinar.');
+            }
             foreach (array_keys($prepared) as $id) {
                 $DB->doQuery('SELECT `id` FROM `' . PluginAssignatureRequest::TABLE . '` WHERE `id` = ' . $id . ' FOR UPDATE');
                 $fresh = PluginAssignatureRequest::get($id);
@@ -168,7 +185,12 @@ class PluginAssignatureBatch
             }
             $DB->insert(self::TABLE, [
                 'method' => $method, 'status' => $method === 'digital' ? 'done' : 'awaiting_upload',
-                'technician_users_id' => $technicianId, 'signer_name' => $signerName,
+                'technician_users_id' => 0, 'technician_profiles_id' => $technicianId,
+                'technician_name' => (string) $profile['full_name'],
+                'technician_document_type' => (string) $profile['document_type'],
+                'technician_document_encrypted' => (string) $profile['document_encrypted'],
+                'technician_signature_png' => (string) $profile['signature_png'],
+                'signer_name' => $signerName,
                 'document_type' => strtoupper($documentType),
                 'document_encrypted' => $formatted !== '' ? (new GLPIKey())->encrypt($formatted) : '',
                 'signature_png' => $png, 'created_by_users_id' => $userId,
@@ -248,6 +270,9 @@ class PluginAssignatureBatch
         if ($batch === null || (string) $batch['method'] !== 'paper' || (string) $batch['status'] !== 'awaiting_upload'
             || !self::canManage($batch, $userId)) {
             throw new RuntimeException('Lote não disponível para envio.');
+        }
+        if (empty($batch['printed_at'])) {
+            throw new RuntimeException('Imprima o termo na fila configurada antes de enviar o arquivo assinado.');
         }
         $requests = self::requests($batchId);
         if ($requests === []) {
@@ -420,7 +445,7 @@ class PluginAssignatureBatch
         $html = '<h1>TERMO DE RETIRADA DE EQUIPAMENTOS</h1>';
         $html .= '<p><b>Assignat-ure · Lote #' . $batchId . '</b><br>Criado em ' . assignature_h($batch['created_at']) . '</p>';
         $html .= '<p>Declaro o recebimento dos equipamentos relacionados abaixo, nas condições registradas nos pedidos de origem.</p>';
-        $html .= '<table cellpadding="7" border="1"><tr><td width="50%"><b>Técnico responsável</b><br>' . assignature_h(self::technician((int) $batch['technician_users_id'])) . '</td><td width="50%"><b>Pessoa que retira</b><br>' . assignature_h($batch['signer_name'] ?: '________________________________') . '</td></tr>';
+        $html .= '<table cellpadding="7" border="1"><tr><td width="50%"><b>Técnico responsável</b><br>' . assignature_h(self::technicianName($batch)) . '</td><td width="50%"><b>Pessoa que retira</b><br>' . assignature_h($batch['signer_name'] ?: '________________________________') . '</td></tr>';
         $html .= '<tr><td><b>Documento (CPF/RG)</b><br>____________________________</td><td><b>Data da retirada</b><br>____ / ____ / ______</td></tr></table><br>';
         $html .= '<table cellpadding="6" border="1"><tr style="background-color:#e9f0fa"><th width="16%"><b>Pedido</b></th><th width="24%"><b>Origem</b></th><th width="60%"><b>Equipamento / descrição</b></th></tr>';
         foreach (self::requests($batchId) as $request) {
@@ -437,9 +462,7 @@ class PluginAssignatureBatch
             $html .= '<tr><td>' . assignature_h($request['code']) . '</td><td>'
                 . assignature_h($source['name'] ?? '') . '</td><td>' . assignature_h($description) . '</td></tr>';
         }
-        $html .= '</table><br><br><br><br><p align="center">________________________________________________</p>';
-        $html .= '<p align="center"><b>Assinatura de quem retira</b></p>';
-        $html .= '<p style="font-size:9px">Termo #' . $batchId . ' gerado pelo Assignat-ure. Após a assinatura, digitalize e envie o arquivo no mesmo lote.</p>';
+        $html .= '</table><br>';
 
         $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator('Assignat-ure');
@@ -451,6 +474,28 @@ class PluginAssignatureBatch
         $pdf->AddPage();
         $pdf->SetFont('dejavusans', '', 10);
         $pdf->writeHTML($html, true, false, true, false, '');
+        $technicianSignature = (string) ($batch['technician_signature_png'] ?? '');
+        if ($technicianSignature !== '') {
+            $binary = base64_decode($technicianSignature, true);
+            if ($binary === false) {
+                throw new RuntimeException('Assinatura cadastrada do técnico inválida.');
+            }
+            if ($pdf->GetY() > 230) {
+                $pdf->AddPage();
+            }
+            $y = $pdf->GetY() + 3;
+            $pdf->Image('@' . $binary, 20, $y, 65, 20, 'PNG');
+            $pdf->SetY($y + 22);
+            $pdf->writeHTML('<p><b>Assinatura do técnico responsável</b> · '
+                . assignature_h(self::technicianName($batch)) . '<br>'
+                . assignature_h((string) ($batch['technician_document_type'] ?? '') . ': '
+                    . self::technicianDocument($batch)) . '</p>', true, false, true, false, '');
+        }
+        $pdf->writeHTML('<br><br><p align="center">________________________________________________</p>'
+            . '<p align="center"><b>Assinatura de quem retira</b></p>'
+            . '<p style="font-size:9px">Termo #' . $batchId
+            . ' gerado pelo Assignat-ure. Após a assinatura, digitalize e envie o arquivo no mesmo lote.</p>',
+            true, false, true, false, '');
         $temp = tempnam(GLPI_PLUGIN_DOC_DIR . '/assignature', 'print-');
         if ($temp === false) {
             throw new RuntimeException('Não foi possível preparar o arquivo de impressão.');
@@ -476,6 +521,8 @@ class PluginAssignatureBatch
             if ($exit !== 0) {
                 throw new RuntimeException('CUPS recusou a impressão: ' . mb_substr(trim((string) $error), 0, 250));
             }
+            global $DB;
+            $DB->update(self::TABLE, ['printed_at' => assignature_now()], ['id' => $batchId]);
             return trim((string) $output);
         } finally {
             @unlink($temp);

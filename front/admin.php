@@ -1,6 +1,7 @@
 <?php
 include('../../../inc/includes.php');
 require_once GLPI_ROOT . '/plugins/assignature/inc/batch.class.php';
+require_once GLPI_ROOT . '/plugins/assignature/inc/technician.class.php';
 
 if (!PluginAssignatureApp::canAdmin()) {
     Html::displayErrorAndDie('Sem permissão para administrar o Assignat-ure.');
@@ -40,6 +41,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         } elseif ($action === 'printer_save') {
             PluginAssignatureBatch::setPrinterQueue((string) ($_POST['printer_queue'] ?? ''));
             assignature_flash('Fila de impressão salva.');
+        } elseif ($action === 'technician_save') {
+            PluginAssignatureTechnician::save($_POST);
+            assignature_flash('Assinatura do técnico salva.');
         } else {
             throw new RuntimeException('Ação desconhecida.');
         }
@@ -50,6 +54,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 }
 
 $sources = PluginAssignatureSource::all();
+$technicians = PluginAssignatureTechnician::all();
+$editTechnician = PluginAssignatureTechnician::get((int) ($_GET['technician'] ?? 0));
+$editTechnicianSources = $editTechnician !== null
+    ? PluginAssignatureTechnician::sourceIds((int) $editTechnician['id']) : [];
 $editSource = PluginAssignatureSource::get((int) ($_GET['source'] ?? 0));
 $editUserId = max(0, (int) ($_GET['user'] ?? 0));
 $editScopeSourceId = max(0, (int) ($_GET['scope_source'] ?? 0));
@@ -73,7 +81,7 @@ Html::header('Administração — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 
 ?>
 <main class="as-page">
     <header class="as-page-head">
-        <div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Administração</h1><p>Conecte plugins e defina o que cada usuário pode ver e assinar.</p></div></div>
+        <div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Administração</h1><p>Conecte plugins, configure acessos e cadastre assinaturas dos técnicos.</p></div></div>
         <a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar às assinaturas</a>
     </header>
 
@@ -125,7 +133,26 @@ Html::header('Administração — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 
             <?php endif; ?>
         </section>
     </div>
-    <section class="as-panel as-printer-settings"><h2>Impressão direta no servidor</h2><p class="as-hint">Fila CUPS da impressora HP no Ubuntu do GLPI. O termo em PDF será enviado pelo servidor somente ao clicar em “Enviar para a HP”.</p><form method="post" class="as-form as-printer-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="printer_save"><label>Nome da fila CUPS<input name="printer_queue" maxlength="100" value="<?= assignature_h(PluginAssignatureBatch::printerQueue()) ?>" placeholder="HP_PeB"></label><button class="as-button" type="submit">Salvar impressora</button></form></section>
+    <section class="as-panel as-technician-settings">
+        <div class="as-section-title"><h2>Assinaturas de técnicos e funcionários</h2><span><?= count($technicians) ?></span></div>
+        <p class="as-hint">Cadastre a identificação e a assinatura uma vez. Selecione os plugins onde este técnico pode aparecer. Em lotes com mais de uma origem, somente técnicos liberados para todas elas serão exibidos.</p>
+        <?php foreach ($technicians as $technician):
+            $linked = PluginAssignatureTechnician::sourceIds((int) $technician['id']);
+            $linkedNames = [];
+            foreach ($sources as $source) { if (in_array((int) $source['id'], $linked, true)) { $linkedNames[] = (string) $source['name']; } }
+            ?><div class="as-source-row"><div><strong><?= assignature_h($technician['full_name']) ?><?= (int) $technician['is_active'] === 1 ? '' : ' · Inativo' ?></strong><small><?= assignature_h($technician['document_type']) ?> · <?= assignature_h(implode(', ', $linkedNames)) ?></small></div><a class="as-button as-button-light as-button-small" href="?technician=<?= (int) $technician['id'] ?>#tecnico-form">Editar</a></div><?php endforeach; ?>
+        <form method="post" class="as-form as-separated" id="tecnico-form" data-technician-form>
+            <?= assignature_csrf_field() ?><input type="hidden" name="action" value="technician_save"><input type="hidden" name="id" value="<?= (int) ($editTechnician['id'] ?? 0) ?>"><input type="hidden" name="signature_png" data-technician-signature>
+            <h3><?= $editTechnician !== null ? 'Editar técnico ou funcionário' : 'Cadastrar técnico ou funcionário' ?></h3>
+            <label>Nome completo<input name="full_name" maxlength="255" required value="<?= assignature_h($editTechnician['full_name'] ?? '') ?>" placeholder="Nome e sobrenome"></label>
+            <div class="as-form-pair"><label>Tipo de documento<select name="document_type" required><option value="">Selecione</option><option value="CPF" <?= ($editTechnician['document_type'] ?? '') === 'CPF' ? 'selected' : '' ?>>CPF</option><option value="RG" <?= ($editTechnician['document_type'] ?? '') === 'RG' ? 'selected' : '' ?>>RG</option></select></label><label>Número do documento<input name="document" data-document-input autocomplete="off" inputmode="numeric" <?= $editTechnician === null ? 'required' : '' ?> placeholder="<?= $editTechnician !== null ? 'Deixe vazio para manter o atual' : '000.000.000-00' ?>"></label></div>
+            <fieldset class="as-source-fieldset"><legend>Plugins onde esta assinatura aparece</legend><div class="as-checks"><?php foreach ($sources as $source): ?><label><input type="checkbox" name="sources[]" value="<?= (int) $source['id'] ?>" <?= in_array((int) $source['id'], $editTechnicianSources, true) ? 'checked' : '' ?>> <?= assignature_h($source['name']) ?></label><?php endforeach; ?></div></fieldset>
+            <div class="as-signature-field"><span>Assinatura do técnico</span><?php if ($editTechnician !== null): ?><p class="as-hint">Assinatura atual. Desenhe abaixo apenas para substituí-la.</p><div class="as-technician-preview"><img src="data:image/png;base64,<?= assignature_h($editTechnician['signature_png']) ?>" alt="Assinatura atual do técnico"></div><?php endif; ?><canvas data-technician-canvas aria-label="Área para desenhar a assinatura do técnico"></canvas><button type="button" class="as-text-button" data-technician-clear>Limpar desenho</button></div>
+            <label class="as-checkbox"><input type="checkbox" name="is_active" value="1" <?= $editTechnician === null || (int) $editTechnician['is_active'] === 1 ? 'checked' : '' ?>> Cadastro ativo</label>
+            <button class="as-button" <?= $sources === [] ? 'disabled' : '' ?>>Salvar assinatura</button>
+        </form>
+    </section>
+    <section class="as-panel as-printer-settings"><h2>Impressão direta no servidor</h2><p class="as-hint">Fila CUPS da impressora HP no Ubuntu do GLPI. Ao confirmar “Assinar depois”, o termo em PDF é enviado para esta fila.</p><form method="post" class="as-form as-printer-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="printer_save"><label>Nome da fila CUPS<input name="printer_queue" maxlength="100" value="<?= assignature_h(PluginAssignatureBatch::printerQueue()) ?>" placeholder="HP_PeB"></label><button class="as-button" type="submit">Salvar impressora</button></form></section>
 
     <?php if ($pendingCallbacks !== []): ?><section class="as-panel as-callbacks"><h2>Confirmações aguardando a origem</h2>
         <?php foreach ($pendingCallbacks as $request): ?><div class="as-source-row"><div><strong><?= assignature_h($request['code']) ?></strong><small><?= assignature_h($request['callback_error'] ?: 'Aguardando envio') ?></small></div><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="callback_retry"><input type="hidden" name="request_id" value="<?= (int) $request['id'] ?>"><button class="as-button as-button-small">Tentar novamente</button></form></div><?php endforeach; ?>

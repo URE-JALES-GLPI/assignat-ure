@@ -32,6 +32,11 @@ function plugin_assignature_install(): bool
             `method` VARCHAR(20) NOT NULL,
             `status` VARCHAR(20) NOT NULL,
             `technician_users_id` INT {$sign} NOT NULL,
+            `technician_profiles_id` INT {$sign} NOT NULL DEFAULT 0,
+            `technician_name` VARCHAR(255) NOT NULL DEFAULT '',
+            `technician_document_type` VARCHAR(10) NOT NULL DEFAULT '',
+            `technician_document_encrypted` TEXT DEFAULT NULL,
+            `technician_signature_png` MEDIUMTEXT DEFAULT NULL,
             `signer_name` VARCHAR(255) NOT NULL DEFAULT '',
             `document_type` VARCHAR(10) NOT NULL DEFAULT '',
             `document_encrypted` TEXT DEFAULT NULL,
@@ -43,7 +48,41 @@ function plugin_assignature_install(): bool
             `completed_by_users_id` INT {$sign} NOT NULL DEFAULT 0,
             `created_at` DATETIME NOT NULL,
             `completed_at` DATETIME DEFAULT NULL,
+            `printed_at` DATETIME DEFAULT NULL,
             PRIMARY KEY (`id`), KEY `status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+    }
+    foreach ([
+        'technician_profiles_id' => "INT {$sign} NOT NULL DEFAULT 0",
+        'technician_name' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'technician_document_type' => "VARCHAR(10) NOT NULL DEFAULT ''",
+        'technician_document_encrypted' => 'TEXT DEFAULT NULL',
+        'technician_signature_png' => 'MEDIUMTEXT DEFAULT NULL',
+        'printed_at' => 'DATETIME DEFAULT NULL',
+    ] as $field => $definition) {
+        if (!$DB->fieldExists('glpi_plugin_assignature_batches', $field)) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_assignature_batches` ADD `{$field}` {$definition}") or die($DB->error());
+        }
+    }
+    if (!$DB->tableExists('glpi_plugin_assignature_technicians')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_assignature_technicians` (
+            `id` INT {$sign} NOT NULL AUTO_INCREMENT,
+            `full_name` VARCHAR(255) NOT NULL,
+            `document_type` VARCHAR(10) NOT NULL,
+            `document_encrypted` TEXT NOT NULL,
+            `signature_png` MEDIUMTEXT NOT NULL,
+            `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+            `date_mod` DATETIME DEFAULT NULL,
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+    }
+    if (!$DB->tableExists('glpi_plugin_assignature_technicians_sources')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_assignature_technicians_sources` (
+            `id` INT {$sign} NOT NULL AUTO_INCREMENT,
+            `technicians_id` INT {$sign} NOT NULL,
+            `sources_id` INT {$sign} NOT NULL,
+            PRIMARY KEY (`id`), UNIQUE KEY `technician_source` (`technicians_id`, `sources_id`),
+            KEY `sources_id` (`sources_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
     }
     if (!$DB->tableExists('glpi_plugin_assignature_settings')) {
@@ -131,7 +170,7 @@ function plugin_assignature_uninstall(): bool
     if (class_exists('CronTask')) {
         CronTask::unregister('PluginAssignatureSync', 'sync');
     }
-    foreach (['scopes', 'requests', 'batches', 'settings', 'sources'] as $table) {
+    foreach (['scopes', 'requests', 'batches', 'settings', 'technicians_sources', 'technicians', 'sources'] as $table) {
         $name = 'glpi_plugin_assignature_' . $table;
         if ($DB->tableExists($name)) {
             $DB->doQuery("DROP TABLE `{$name}`");
