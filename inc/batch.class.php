@@ -692,7 +692,10 @@ class PluginAssignatureBatch
     {
         $command = ['/usr/bin/lp', '-d', $queue, '-n', $paper ? '1' : '2', '-o', 'media=A4'];
         if ($pages > 1) {
-            array_push($command, '-o', 'sides=two-sided-long-edge');
+            array_push($command, '-o', 'sides=two-sided-long-edge', '-o', 'Duplex=DuplexNoTumble');
+            if ($queue === 'HP_PeB') {
+                array_push($command, '-o', 'Option1=True');
+            }
         }
         $command[] = $path;
         return $command;

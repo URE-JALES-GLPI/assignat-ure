@@ -31,6 +31,8 @@ $duplexPaper = PluginAssignatureBatch::printCommand('HP_PeB', true, 2, '/tmp/ter
 $duplexDigital = PluginAssignatureBatch::printCommand('HP_PeB', false, 2, '/tmp/termo.pdf');
 if ($singlePaper[4] !== '1' || in_array('sides=two-sided-long-edge', $singlePaper, true)
     || $duplexPaper[4] !== '1' || !in_array('sides=two-sided-long-edge', $duplexPaper, true)
+    || !in_array('Duplex=DuplexNoTumble', $duplexPaper, true)
+    || !in_array('Option1=True', $duplexPaper, true)
     || $duplexDigital[4] !== '2' || !in_array('sides=two-sided-long-edge', $duplexDigital, true)) {
     throw new RuntimeException('Opções de cópias e frente e verso incorretas.');
 }
