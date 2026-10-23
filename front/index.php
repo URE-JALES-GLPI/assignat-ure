@@ -4,9 +4,9 @@ require_once GLPI_ROOT . '/plugins/assignature/inc/request.class.php';
 
 Session::checkRight(PluginAssignatureProfile::RIGHT_VIEW, READ);
 $userId = (int) Session::getLoginUserID();
-$status = (string) ($_GET['status'] ?? '');
+$status = (string) ($_GET['status'] ?? 'pending');
 if (!in_array($status, ['', 'pending', 'done'], true)) {
-    $status = '';
+    $status = 'pending';
 }
 $sourceId = max(0, (int) ($_GET['source'] ?? 0));
 PluginAssignatureRequest::syncDueSources($userId);

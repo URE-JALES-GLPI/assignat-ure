@@ -48,6 +48,12 @@ class PluginAssignatureBatch
         return $encrypted === '' ? '' : (string) (new GLPIKey())->decrypt($encrypted);
     }
 
+    public static function formatDate(string $value, bool $time = false): string
+    {
+        $timestamp = strtotime($value);
+        return $timestamp === false ? $value : date($time ? 'd/m/Y H:i' : 'd/m/Y', $timestamp);
+    }
+
     public static function document(string $type, string $value): string
     {
         $type = strtoupper(trim($type));
@@ -246,11 +252,69 @@ class PluginAssignatureBatch
             return false;
         }
         foreach ($requests as $request) {
-            if (!PluginAssignatureScope::canSee($userId, (int) $request['sources_id'], (string) $request['status'])) {
+            $canSee = PluginAssignatureScope::canSee($userId, (int) $request['sources_id'], (string) $request['status']);
+            $ownDigital = (string) $batch['method'] === 'digital'
+                && (int) $batch['created_by_users_id'] === $userId
+                && PluginAssignatureScope::canSign($userId, (int) $request['sources_id']);
+            if (!$canSee && !$ownDigital) {
                 return false;
             }
         }
         return true;
+    }
+
+    /** Linhas do termo a partir dos dados congelados no momento da assinatura. */
+    public static function termRows(array $requests): array
+    {
+        $rows = [];
+        foreach ($requests as $request) {
+            $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
+            $payload = is_array($payload) ? $payload : [];
+            $source = PluginAssignatureSource::get((int) $request['sources_id']);
+            $origin = (string) ($source['name'] ?? 'Plugin de origem');
+            $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
+            if ($machines === []) {
+                $rows[] = [
+                    'code' => (string) $request['code'], 'name' => (string) $request['title'],
+                    'type' => $origin, 'status' => 'Conforme pedido',
+                    'report' => trim((string) ($payload['description'] ?? $request['summary'] ?? '')),
+                ];
+                continue;
+            }
+            foreach ($machines as $machine) {
+                if (!is_array($machine)) {
+                    continue;
+                }
+                $name = trim((string) ($machine['label'] ?? ''));
+                $model = trim((string) ($machine['model_name'] ?? ''));
+                $rows[] = [
+                    'code' => (string) $request['code'],
+                    'name' => $name !== '' ? $name : ($model !== '' ? $model : (string) $request['title']),
+                    'type' => $model !== '' ? $model : $origin,
+                    'status' => trim((string) ($machine['status_label'] ?? '')) ?: 'Não informado',
+                    'report' => trim((string) ($machine['report'] ?? '')),
+                ];
+            }
+        }
+        return $rows;
+    }
+
+    public static function termContext(array $requests): array
+    {
+        $sources = [];
+        $boards = [];
+        foreach ($requests as $request) {
+            $source = PluginAssignatureSource::get((int) $request['sources_id']);
+            if ($source !== null) {
+                $sources[(int) $source['id']] = (string) $source['name'];
+            }
+            $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
+            if (is_array($payload) && trim((string) ($payload['board']['name'] ?? '')) !== '') {
+                $boards[] = trim((string) $payload['board']['name']);
+            }
+        }
+        return ['sources' => implode(', ', array_values($sources)),
+            'boards' => implode(', ', array_unique($boards))];
     }
 
     public static function filePath(array $batch): string
@@ -423,11 +487,160 @@ class PluginAssignatureBatch
         }
     }
 
-    public static function printPaper(int $batchId, int $userId): string
+    /** Gera o mesmo termo usado na tela, sem acionar a impressora. */
+    public static function termPdf(array $batch, array $requests): array
+    {
+        if (!class_exists('TCPDF')) {
+            throw new RuntimeException('O servidor precisa do TCPDF para gerar o termo.');
+        }
+        $rows = self::termRows($requests);
+        $context = self::termContext($requests);
+        $paper = (string) $batch['method'] === 'paper';
+        $batchId = (int) $batch['id'];
+        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
+        $pdf->SetCreator('Assignat-ure');
+        $pdf->SetTitle('Termo de entrega de equipamentos #' . $batchId);
+        $pdf->setPrintHeader(false);
+        $pdf->setPrintFooter(false);
+        $pdf->SetMargins(17, 17, 17);
+        $pdf->SetAutoPageBreak(true, 18);
+        $pdf->AddPage();
+        $logo = dirname(__DIR__) . '/logo.png';
+        if (is_file($logo)) {
+            $pdf->Image($logo, 17, 17, 18, 18, 'PNG');
+        }
+        $pdf->SetTextColor(83, 96, 116);
+        $pdf->SetFont('dejavusans', 'B', 8);
+        $pdf->SetXY(40, 18);
+        $pdf->Cell(153, 5, '[URE] ASSIGNAT-URE', 0, 1, 'R');
+        $pdf->SetTextColor(17, 102, 178);
+        $pdf->SetFont('dejavusans', 'B', 15);
+        $pdf->SetX(40);
+        $pdf->Cell(153, 8, 'Termo de entrega de equipamentos', 0, 1, 'R');
+        $pdf->SetTextColor(83, 96, 116);
+        $pdf->SetFont('dejavusans', '', 8);
+        $pdf->SetX(40);
+        $pdf->Cell(153, 5, 'Lote #' . $batchId . '  |  ' . self::formatDate((string) $batch['created_at'], true), 0, 1, 'R');
+        $pdf->SetDrawColor(17, 111, 190);
+        $pdf->SetLineWidth(.6);
+        $pdf->Line(17, 39, 193, 39);
+        $pdf->SetY(44);
+        $pdf->SetTextColor(28, 51, 82);
+        $pdf->SetFont('dejavusans', '', 9);
+        $intro = 'Este termo registra a entrega dos equipamentos abaixo após os procedimentos informados pelos plugins de origem. '
+            . 'A pessoa responsável pela retirada deve conferir os itens e as condições registradas antes de assinar.';
+        $pdf->writeHTML('<table cellpadding="9" style="background-color:#f3f8fe;border-left:3px solid #1372bd"><tr><td>'
+            . assignature_h($intro) . '</td></tr></table>', true, false, true, false, '');
+        $pdf->writeHTML('<p>Eu, <b>' . assignature_h(self::technicianName($batch))
+            . '</b>, técnico(a) responsável, declaro que os equipamentos listados foram disponibilizados ao responsável identificado neste termo, '
+            . 'com os resultados e observações registrados no atendimento.</p>', true, false, true, false, '');
+        $recipient = $paper ? '________________________________' : (string) $batch['signer_name'];
+        $facts = [
+            ['DATA DA ENTREGA', self::formatDate((string) $batch['created_at']), 'PLUGIN(S) DE ORIGEM', $context['sources'] ?: '—'],
+            ['TÉCNICO RESPONSÁVEL', self::technicianName($batch) . ' — ' . (string) ($batch['technician_document_type'] ?? '') . ' ' . self::technicianDocument($batch),
+                'RESPONSÁVEL PELA RETIRADA', $recipient],
+            ['QUADRO / ATENDIMENTO', $context['boards'] ?: 'Não informado',
+                'ITENS NESTE TERMO', count($rows) . ' equipamento(s) · ' . count($requests) . ' pedido(s)'],
+        ];
+        $html = '<table cellpadding="7" cellspacing="4" width="100%">';
+        foreach ($facts as $fact) {
+            $html .= '<tr><td width="50%" style="border:1px solid #d9e3f0"><span style="color:#61748f;font-size:8px"><b>'
+                . assignature_h($fact[0]) . '</b></span><br><b>' . assignature_h($fact[1])
+                . '</b></td><td width="50%" style="border:1px solid #d9e3f0"><span style="color:#61748f;font-size:8px"><b>'
+                . assignature_h($fact[2]) . '</b></span><br><b>' . assignature_h($fact[3]) . '</b></td></tr>';
+        }
+        $pdf->writeHTML($html . '</table><br>', true, false, true, false, '');
+        $pdf->SetTextColor(17, 102, 178);
+        $pdf->SetFont('dejavusans', 'B', 9);
+        $pdf->Cell(0, 7, 'EQUIPAMENTOS ENTREGUES', 0, 1);
+        $pdf->SetTextColor(28, 51, 82);
+        $html = '<table border="1" cellpadding="5" width="100%" style="border-color:#dce5ef;font-size:8px">'
+            . '<thead><tr style="background-color:#eaf3fc;color:#1b4c7e"><th width="6%"><b>#</b></th>'
+            . '<th width="25%"><b>EQUIPAMENTO / PEDIDO</b></th><th width="18%"><b>TIPO</b></th>'
+            . '<th width="16%"><b>STATUS FINAL</b></th><th width="35%"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
+        foreach ($rows as $index => $row) {
+            $html .= '<tr><td>' . ($index + 1) . '</td><td><b>' . assignature_h($row['name'])
+                . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td><td>'
+                . assignature_h($row['type']) . '</td><td><b>' . assignature_h($row['status']) . '</b></td><td>'
+                . assignature_h($row['report'] !== '' ? $row['report'] : '—') . '</td></tr>';
+        }
+        $pdf->writeHTML($html . '</tbody></table>', true, false, true, false, '');
+        if ($pdf->GetY() > 208) {
+            $pdf->AddPage();
+        }
+        $pdf->Ln(6);
+        $pdf->SetTextColor(17, 102, 178);
+        $pdf->SetFont('dejavusans', 'B', 9);
+        $pdf->Cell(0, 7, 'ASSINATURAS', 0, 1);
+        $y = $pdf->GetY() + 2;
+        $pdf->SetDrawColor(210, 223, 239);
+        $pdf->SetLineWidth(.2);
+        $pdf->Rect(17, $y, 85, 55);
+        $pdf->Rect(108, $y, 85, 55);
+        $technicianSignature = (string) ($batch['technician_signature_png'] ?? '');
+        if ($technicianSignature !== '') {
+            $binary = base64_decode($technicianSignature, true);
+            if ($binary === false) {
+                throw new RuntimeException('Assinatura cadastrada do técnico inválida.');
+            }
+            $pdf->Image('@' . $binary, 22, $y + 3, 64, 17, 'PNG');
+        }
+        if ($paper) {
+            $pdf->SetDrawColor(71, 83, 100);
+            $pdf->Line(114, $y + 21, 187, $y + 21);
+        } else {
+            $recipientSignature = base64_decode((string) $batch['signature_png'], true);
+            if ($recipientSignature === false) {
+                throw new RuntimeException('Assinatura do responsável inválida.');
+            }
+            $pdf->Image('@' . $recipientSignature, 113, $y + 3, 64, 17, 'PNG');
+        }
+        $pdf->SetDrawColor(166, 184, 206);
+        $pdf->Line(22, $y + 22, 97, $y + 22);
+        $pdf->Line(113, $y + 22, 188, $y + 22);
+        $pdf->SetTextColor(28, 51, 82);
+        $pdf->SetFont('dejavusans', 'B', 8);
+        $pdf->SetXY(22, $y + 24);
+        $pdf->Cell(75, 5, 'Responsável pela entrega (técnico)', 0, 0);
+        $pdf->SetXY(113, $y + 24);
+        $pdf->Cell(75, 5, 'Responsável pelo recebimento', 0, 0);
+        $pdf->SetFont('dejavusans', '', 7);
+        $pdf->SetXY(22, $y + 31);
+        $pdf->MultiCell(75, 4, 'Nome: ' . self::technicianName($batch) . "\nDocumento: "
+            . (string) ($batch['technician_document_type'] ?? '') . ' ' . self::technicianDocument($batch), 0, 'L');
+        $pdf->SetXY(113, $y + 31);
+        $pdf->MultiCell(75, 4, 'Nome: ' . ($paper ? '____________________________' : (string) $batch['signer_name'])
+            . "\nDocumento: " . ($paper ? '____________________________' : (string) $batch['document_type'] . ' '
+                . self::decryptedDocument($batch)), 0, 'L');
+        if (!$paper) {
+            $pdf->SetXY(113, $y + 47);
+            $pdf->Cell(75, 4, 'Assinado em ' . self::formatDate((string) $batch['completed_at'], true), 0, 0);
+        }
+        $pageCount = $pdf->getNumPages();
+        for ($page = 1; $page <= $pageCount; $page++) {
+            $pdf->setPage($page);
+            $pdf->SetDrawColor(218, 228, 239);
+            $pdf->Line(17, 281, 193, 281);
+            $pdf->SetTextColor(105, 121, 142);
+            $pdf->SetFont('dejavusans', '', 7);
+            $pdf->SetXY(17, 283);
+            $pdf->Cell(135, 5, '[URE] Assignat-ure  |  Termo #' . $batchId, 0, 0);
+            $pdf->Cell(41, 5, 'Página ' . $page . ' de ' . $pageCount, 0, 0, 'R');
+        }
+        $content = $pdf->Output('termo.pdf', 'S');
+        if (!is_string($content) || !str_starts_with($content, '%PDF-')) {
+            throw new RuntimeException('Não foi possível gerar o PDF do termo.');
+        }
+        return ['content' => $content, 'pages' => $pageCount];
+    }
+
+    public static function printTerm(int $batchId, int $userId): string
     {
         $batch = self::get($batchId);
-        if ($batch === null || (string) $batch['method'] !== 'paper'
-            || (string) $batch['status'] !== 'awaiting_upload' || !self::canManage($batch, $userId)) {
+        $paper = $batch !== null && (string) $batch['method'] === 'paper';
+        if ($batch === null || !self::canManage($batch, $userId)
+            || ($paper && (string) $batch['status'] !== 'awaiting_upload')
+            || (!$paper && ((string) $batch['method'] !== 'digital' || (string) $batch['status'] !== 'done'))) {
             throw new RuntimeException('Termo não disponível para impressão.');
         }
         foreach (self::requests($batchId) as $request) {
@@ -439,75 +652,25 @@ class PluginAssignatureBatch
         if ($queue === '' || !preg_match('/^[A-Za-z0-9_.-]{1,100}$/D', $queue)) {
             throw new RuntimeException('Configure uma fila CUPS válida na administração do Assignat-ure.');
         }
-        if (!class_exists('TCPDF') || !function_exists('proc_open') || !is_executable('/usr/bin/lp')) {
-            throw new RuntimeException('O servidor precisa do TCPDF e do comando /usr/bin/lp para imprimir diretamente.');
+        if (!function_exists('proc_open') || !is_executable('/usr/bin/lp')) {
+            throw new RuntimeException('O servidor precisa do comando /usr/bin/lp para imprimir diretamente.');
         }
-        $html = '<h1>TERMO DE RETIRADA DE EQUIPAMENTOS</h1>';
-        $html .= '<p><b>Assignat-ure · Lote #' . $batchId . '</b><br>Criado em ' . assignature_h($batch['created_at']) . '</p>';
-        $html .= '<p>Declaro o recebimento dos equipamentos relacionados abaixo, nas condições registradas nos pedidos de origem.</p>';
-        $html .= '<table cellpadding="7" border="1"><tr><td width="50%"><b>Técnico responsável</b><br>' . assignature_h(self::technicianName($batch)) . '</td><td width="50%"><b>Pessoa que retira</b><br>' . assignature_h($batch['signer_name'] ?: '________________________________') . '</td></tr>';
-        $html .= '<tr><td><b>Documento (CPF/RG)</b><br>____________________________</td><td><b>Data da retirada</b><br>____ / ____ / ______</td></tr></table><br>';
-        $html .= '<table cellpadding="6" border="1"><tr style="background-color:#e9f0fa"><th width="16%"><b>Pedido</b></th><th width="24%"><b>Origem</b></th><th width="60%"><b>Equipamento / descrição</b></th></tr>';
-        foreach (self::requests($batchId) as $request) {
-            $source = PluginAssignatureSource::get((int) $request['sources_id']);
-            $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
-            $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
-            $labels = [];
-            foreach ($machines as $machine) {
-                if (is_array($machine)) {
-                    $labels[] = trim((string) ($machine['label'] ?? $machine['model_name'] ?? ''));
-                }
-            }
-            $description = trim(implode(', ', array_filter($labels)) . ' — ' . (string) $request['title'], " —");
-            $html .= '<tr><td>' . assignature_h($request['code']) . '</td><td>'
-                . assignature_h($source['name'] ?? '') . '</td><td>' . assignature_h($description) . '</td></tr>';
-        }
-        $html .= '</table><br>';
-
-        $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
-        $pdf->SetCreator('Assignat-ure');
-        $pdf->SetTitle('Termo de retirada #' . $batchId);
-        $pdf->setPrintHeader(false);
-        $pdf->setPrintFooter(false);
-        $pdf->SetMargins(17, 18, 17);
-        $pdf->SetAutoPageBreak(true, 18);
-        $pdf->AddPage();
-        $pdf->SetFont('dejavusans', '', 10);
-        $pdf->writeHTML($html, true, false, true, false, '');
-        $technicianSignature = (string) ($batch['technician_signature_png'] ?? '');
-        if ($technicianSignature !== '') {
-            $binary = base64_decode($technicianSignature, true);
-            if ($binary === false) {
-                throw new RuntimeException('Assinatura cadastrada do técnico inválida.');
-            }
-            if ($pdf->GetY() > 230) {
-                $pdf->AddPage();
-            }
-            $y = $pdf->GetY() + 3;
-            $pdf->Image('@' . $binary, 20, $y, 65, 20, 'PNG');
-            $pdf->SetY($y + 22);
-            $pdf->writeHTML('<p><b>Assinatura do técnico responsável</b> · '
-                . assignature_h(self::technicianName($batch)) . '<br>'
-                . assignature_h((string) ($batch['technician_document_type'] ?? '') . ': '
-                    . self::technicianDocument($batch)) . '</p>', true, false, true, false, '');
-        }
-        $pdf->writeHTML('<br><br><p align="center">________________________________________________</p>'
-            . '<p align="center"><b>Assinatura de quem retira</b></p>'
-            . '<p style="font-size:9px">Termo #' . $batchId
-            . ' gerado pelo Assignat-ure. Após a assinatura, digitalize e envie o arquivo no mesmo lote.</p>',
-            true, false, true, false, '');
+        $term = self::termPdf($batch, self::requests($batchId));
         $temp = tempnam(GLPI_PLUGIN_DOC_DIR . '/assignature', 'print-');
         if ($temp === false) {
             throw new RuntimeException('Não foi possível preparar o arquivo de impressão.');
         }
         try {
-            $content = $pdf->Output('termo.pdf', 'S');
-            if (!is_string($content) || !str_starts_with($content, '%PDF-')
-                || file_put_contents($temp, $content) === false) {
+            if (file_put_contents($temp, $term['content']) === false) {
                 throw new RuntimeException('Não foi possível gerar o PDF para impressão.');
             }
             $pipes = [];
-            $process = proc_open(['/usr/bin/lp', '-d', $queue, '-o', 'media=A4', $temp],
+            $command = ['/usr/bin/lp', '-d', $queue, '-n', $paper ? '1' : '2', '-o', 'media=A4'];
+            if ((int) $term['pages'] > 1) {
+                array_push($command, '-o', 'sides=two-sided-long-edge');
+            }
+            $command[] = $temp;
+            $process = proc_open($command,
                 [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             if (!is_resource($process)) {
                 throw new RuntimeException('O comando lp não pôde ser iniciado no servidor.');
