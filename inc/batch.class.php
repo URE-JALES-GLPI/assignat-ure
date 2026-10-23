@@ -456,7 +456,11 @@ class PluginAssignatureBatch
             throw new RuntimeException('Não foi possível preparar o arquivo de impressão.');
         }
         try {
-            $pdf->Output($temp, 'F');
+            $content = $pdf->Output('termo.pdf', 'S');
+            if (!is_string($content) || !str_starts_with($content, '%PDF-')
+                || file_put_contents($temp, $content) === false) {
+                throw new RuntimeException('Não foi possível gerar o PDF para impressão.');
+            }
             $pipes = [];
             $process = proc_open(['/usr/bin/lp', '-d', $queue, '-o', 'media=A4', $temp],
                 [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
