@@ -554,14 +554,16 @@ class PluginAssignatureBatch
         $pdf->SetFont('dejavusans', 'B', 9);
         $pdf->Cell(0, 7, 'EQUIPAMENTOS ENTREGUES', 0, 1);
         $pdf->SetTextColor(28, 51, 82);
-        $html = '<table border="1" cellpadding="5" width="100%" style="border-color:#dce5ef;font-size:8px">'
-            . '<thead><tr style="background-color:#eaf3fc;color:#1b4c7e"><th width="6%"><b>#</b></th>'
-            . '<th width="25%"><b>EQUIPAMENTO / PEDIDO</b></th><th width="18%"><b>TIPO</b></th>'
-            . '<th width="16%"><b>STATUS FINAL</b></th><th width="35%"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
+        $pdf->SetFont('dejavusans', '', 8.5);
+        $border = 'border-bottom:1px solid #dce5ef';
+        $html = '<table cellpadding="8" width="100%" style="font-size:8.5px">'
+            . '<thead><tr style="background-color:#eaf3fc;color:#1b4c7e"><th width="6%" style="' . $border . '"><b>#</b></th>'
+            . '<th width="25%" style="' . $border . '"><b>EQUIPAMENTO / PEDIDO</b></th><th width="18%" style="' . $border . '"><b>TIPO</b></th>'
+            . '<th width="16%" style="' . $border . '"><b>STATUS FINAL</b></th><th width="35%" style="' . $border . '"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
         foreach ($rows as $index => $row) {
-            $html .= '<tr><td>' . ($index + 1) . '</td><td><b>' . assignature_h($row['name'])
-                . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td><td>'
-                . assignature_h($row['type']) . '</td><td><b>' . assignature_h($row['status']) . '</b></td><td>'
+            $html .= '<tr><td style="' . $border . '">' . ($index + 1) . '</td><td style="' . $border . '"><b>' . assignature_h($row['name'])
+                . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td><td style="' . $border . '">'
+                . assignature_h($row['type']) . '</td><td style="' . $border . '"><b>' . assignature_h($row['status']) . '</b></td><td style="' . $border . '">'
                 . assignature_h($row['report'] !== '' ? $row['report'] : '—') . '</td></tr>';
         }
         $pdf->writeHTML($html . '</tbody></table>', true, false, true, false, '');
@@ -617,6 +619,7 @@ class PluginAssignatureBatch
             $pdf->Cell(75, 4, 'Assinado em ' . self::formatDate((string) $batch['completed_at'], true), 0, 0);
         }
         $pageCount = $pdf->getNumPages();
+        $pdf->SetAutoPageBreak(false, 0);
         for ($page = 1; $page <= $pageCount; $page++) {
             $pdf->setPage($page);
             $pdf->SetDrawColor(218, 228, 239);
