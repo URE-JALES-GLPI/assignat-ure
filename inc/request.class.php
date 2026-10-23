@@ -247,12 +247,23 @@ class PluginAssignatureRequest
             throw new RuntimeException('Fonte não encontrada.');
         }
         try {
+            $hash = hash('sha256', base64_decode((string) $request['signature_png'], true) ?: '');
+            if ((int) ($request['batches_id'] ?? 0) > 0) {
+                require_once __DIR__ . '/batch.class.php';
+                $batch = PluginAssignatureBatch::get((int) $request['batches_id']);
+                if ($batch === null || (string) $batch['status'] !== 'done') {
+                    throw new RuntimeException('Comprovante do lote não encontrado.');
+                }
+                $hash = (string) $batch['method'] === 'paper'
+                    ? (string) $batch['file_sha256']
+                    : hash('sha256', base64_decode((string) $batch['signature_png'], true) ?: '');
+            }
             PluginAssignatureSource::api($source, 'POST', [
                 'action' => 'signature_completed',
                 'id' => (string) $request['external_id'],
                 'signer_name' => (string) $request['signer_name'],
                 'signed_at' => (string) $request['signed_at'],
-                'signature_sha256' => hash('sha256', base64_decode((string) $request['signature_png'], true) ?: ''),
+                'signature_sha256' => $hash,
             ]);
             $DB->update(self::TABLE, ['callback_state' => 'confirmed', 'callback_error' => ''], ['id' => $id]);
         } catch (Throwable $e) {

@@ -26,7 +26,7 @@ function assignature_now(): string
 
 function assignature_csrf_field(): string
 {
-    return Html::hidden('_glpi_csrf_token', ['value' => '']);
+    return Html::hidden('_glpi_csrf_token', ['value' => Session::getNewCSRFToken()]);
 }
 
 function assignature_flash(string $message, bool $success = true): void

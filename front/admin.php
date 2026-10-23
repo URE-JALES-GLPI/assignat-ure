@@ -1,6 +1,6 @@
 <?php
 include('../../../inc/includes.php');
-require_once GLPI_ROOT . '/plugins/assignature/inc/request.class.php';
+require_once GLPI_ROOT . '/plugins/assignature/inc/batch.class.php';
 
 if (!PluginAssignatureApp::canAdmin()) {
     Html::displayErrorAndDie('Sem permissão para administrar o Assignat-ure.');
@@ -37,6 +37,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         } elseif ($action === 'callback_retry') {
             PluginAssignatureRequest::sendCallback((int) ($_POST['request_id'] ?? 0));
             assignature_flash('Confirmação enviada para a origem.');
+        } elseif ($action === 'printer_save') {
+            PluginAssignatureBatch::setPrinterQueue((string) ($_POST['printer_queue'] ?? ''));
+            assignature_flash('Fila de impressão salva.');
         } else {
             throw new RuntimeException('Ação desconhecida.');
         }
@@ -122,6 +125,7 @@ Html::header('Administração — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 
             <?php endif; ?>
         </section>
     </div>
+    <section class="as-panel as-printer-settings"><h2>Impressão direta no servidor</h2><p class="as-hint">Fila CUPS da impressora HP no Ubuntu do GLPI. O termo em PDF será enviado pelo servidor somente ao clicar em “Enviar para a HP”.</p><form method="post" class="as-form as-printer-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="printer_save"><label>Nome da fila CUPS<input name="printer_queue" maxlength="100" value="<?= assignature_h(PluginAssignatureBatch::printerQueue()) ?>" placeholder="HP_PeB"></label><button class="as-button" type="submit">Salvar impressora</button></form></section>
 
     <?php if ($pendingCallbacks !== []): ?><section class="as-panel as-callbacks"><h2>Confirmações aguardando a origem</h2>
         <?php foreach ($pendingCallbacks as $request): ?><div class="as-source-row"><div><strong><?= assignature_h($request['code']) ?></strong><small><?= assignature_h($request['callback_error'] ?: 'Aguardando envio') ?></small></div><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="callback_retry"><input type="hidden" name="request_id" value="<?= (int) $request['id'] ?>"><button class="as-button as-button-small">Tentar novamente</button></form></div><?php endforeach; ?>

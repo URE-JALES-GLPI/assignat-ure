@@ -26,6 +26,35 @@ function plugin_assignature_install(): bool
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
     }
 
+    if (!$DB->tableExists('glpi_plugin_assignature_batches')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_assignature_batches` (
+            `id` INT {$sign} NOT NULL AUTO_INCREMENT,
+            `method` VARCHAR(20) NOT NULL,
+            `status` VARCHAR(20) NOT NULL,
+            `technician_users_id` INT {$sign} NOT NULL,
+            `signer_name` VARCHAR(255) NOT NULL DEFAULT '',
+            `document_type` VARCHAR(10) NOT NULL DEFAULT '',
+            `document_encrypted` TEXT DEFAULT NULL,
+            `signature_png` MEDIUMTEXT DEFAULT NULL,
+            `file_name` VARCHAR(255) NOT NULL DEFAULT '',
+            `file_extension` VARCHAR(10) NOT NULL DEFAULT '',
+            `file_sha256` CHAR(64) NOT NULL DEFAULT '',
+            `created_by_users_id` INT {$sign} NOT NULL,
+            `completed_by_users_id` INT {$sign} NOT NULL DEFAULT 0,
+            `created_at` DATETIME NOT NULL,
+            `completed_at` DATETIME DEFAULT NULL,
+            PRIMARY KEY (`id`), KEY `status` (`status`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+    }
+    if (!$DB->tableExists('glpi_plugin_assignature_settings')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_assignature_settings` (
+            `id` INT {$sign} NOT NULL AUTO_INCREMENT,
+            `printer_queue` VARCHAR(100) NOT NULL DEFAULT 'HP_PeB',
+            PRIMARY KEY (`id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+        $DB->insert('glpi_plugin_assignature_settings', ['printer_queue' => 'HP_PeB']);
+    }
+
     if (!$DB->tableExists('glpi_plugin_assignature_requests')) {
         $DB->doQuery("CREATE TABLE `glpi_plugin_assignature_requests` (
             `id` INT {$sign} NOT NULL AUTO_INCREMENT,
@@ -37,6 +66,7 @@ function plugin_assignature_install(): bool
             `payload_json` MEDIUMTEXT DEFAULT NULL,
             `status` VARCHAR(20) NOT NULL DEFAULT 'pending',
             `is_active` TINYINT(1) NOT NULL DEFAULT 1,
+            `batches_id` INT {$sign} NOT NULL DEFAULT 0,
             `signature_png` MEDIUMTEXT DEFAULT NULL,
             `signer_name` VARCHAR(255) NOT NULL DEFAULT '',
             `signer_document` VARCHAR(100) NOT NULL DEFAULT '',
@@ -49,8 +79,16 @@ function plugin_assignature_install(): bool
             `date_mod` DATETIME DEFAULT NULL,
             PRIMARY KEY (`id`),
             UNIQUE KEY `source_external` (`sources_id`, `external_id`),
-            KEY `status` (`status`), KEY `source_status` (`sources_id`, `status`)
+            KEY `status` (`status`), KEY `source_status` (`sources_id`, `status`),
+            KEY `batches_id` (`batches_id`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+    }
+    if (!$DB->fieldExists('glpi_plugin_assignature_requests', 'batches_id')) {
+        $DB->doQuery("ALTER TABLE `glpi_plugin_assignature_requests` ADD `batches_id` INT {$sign} NOT NULL DEFAULT 0, ADD KEY `batches_id` (`batches_id`)") or die($DB->error());
+    }
+    $directory = GLPI_PLUGIN_DOC_DIR . '/assignature';
+    if (!is_dir($directory) && !mkdir($directory, 0700, true) && !is_dir($directory)) {
+        throw new RuntimeException('Não foi possível criar o diretório privado de comprovantes do Assignat-ure.');
     }
 
     if (!$DB->tableExists('glpi_plugin_assignature_scopes')) {
@@ -93,7 +131,7 @@ function plugin_assignature_uninstall(): bool
     if (class_exists('CronTask')) {
         CronTask::unregister('PluginAssignatureSync', 'sync');
     }
-    foreach (['scopes', 'requests', 'sources'] as $table) {
+    foreach (['scopes', 'requests', 'batches', 'settings', 'sources'] as $table) {
         $name = 'glpi_plugin_assignature_' . $table;
         if ($DB->tableExists($name)) {
             $DB->doQuery("DROP TABLE `{$name}`");

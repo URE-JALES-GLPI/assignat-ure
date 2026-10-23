@@ -1,6 +1,6 @@
 <?php
 include('../../../inc/includes.php');
-require_once GLPI_ROOT . '/plugins/assignature/inc/request.class.php';
+require_once GLPI_ROOT . '/plugins/assignature/inc/batch.class.php';
 
 Session::checkRight(PluginAssignatureProfile::RIGHT_VIEW, READ);
 $userId = (int) Session::getLoginUserID();
@@ -33,27 +33,11 @@ if ($source === null) {
     Html::displayErrorAndDie('Fonte não encontrada.');
 }
 
-if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
-    try {
-        if (!isset($_POST['sign']) || empty($_POST['accepted'])) {
-            throw new RuntimeException('Confirme que os dados foram conferidos.');
-        }
-        PluginAssignatureRequest::sign(
-            $id,
-            $userId,
-            (string) ($_POST['signer_name'] ?? ''),
-            (string) ($_POST['signer_document'] ?? ''),
-            (string) ($_POST['signature_png'] ?? '')
-        );
-        assignature_flash('Assinatura registrada. O comprovante está disponível.');
-    } catch (Throwable $e) {
-        assignature_flash($e->getMessage(), false);
-    }
-    Html::redirect(assignature_url('/front/request.php?id=' . $id));
-}
-
 $canSign = (string) $request['status'] === 'pending'
+    && (int) ($request['batches_id'] ?? 0) === 0
     && PluginAssignatureScope::canSign($userId, (int) $source['id']);
+$batch = (int) ($request['batches_id'] ?? 0) > 0
+    ? PluginAssignatureBatch::get((int) $request['batches_id']) : null;
 $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
 $payload = is_array($payload) ? $payload : [];
 $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
@@ -80,23 +64,16 @@ Html::header('Assinatura ' . $request['code'] . ' — Assignat-ure', $_SERVER['P
 
         <?php if ($request['status'] === 'done'): ?>
             <section class="as-panel as-receipt"><h2>Comprovante de assinatura</h2><p>Assinado por <strong><?= assignature_h($request['signer_name']) ?></strong> em <?= assignature_h($request['signed_at']) ?>.</p>
-                <?php if ($request['signer_document'] !== ''): ?><p>Documento: <?= assignature_h($request['signer_document']) ?></p><?php endif; ?>
-                <div class="as-signed-image"><img src="data:image/png;base64,<?= assignature_h($request['signature_png']) ?>" alt="Assinatura de <?= assignature_h($request['signer_name']) ?>"></div>
+                <?php if ($batch !== null): ?><p>Técnico: <?= assignature_h(PluginAssignatureBatch::technician((int) $batch['technician_users_id'])) ?></p><p>Documento: <?= assignature_h($batch['document_type']) ?> <?= assignature_h(PluginAssignatureBatch::decryptedDocument($batch)) ?></p><?php elseif ($request['signer_document'] !== ''): ?><p>Documento: <?= assignature_h($request['signer_document']) ?></p><?php endif; ?>
+                <?php if ($batch !== null && (string) $batch['method'] === 'paper'): ?><p><i class="ti ti-file-check"></i> Assinado em papel e arquivo registrado no Assignat-ure.</p><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/file.php?id=' . (int) $batch['id'])) ?>">Ver arquivo assinado</a><?php else: ?><div class="as-signed-image"><img src="data:image/png;base64,<?= assignature_h($batch['signature_png'] ?? $request['signature_png']) ?>" alt="Assinatura de <?= assignature_h($request['signer_name']) ?>"></div><?php endif; ?>
                 <p class="as-hint">Registrado por <?= assignature_h($signedBy ?: 'usuário GLPI #' . $request['signed_by_users_id']) ?> · comprovante #<?= (int) $request['id'] ?></p>
                 <?php if ($request['callback_state'] !== 'confirmed'): ?><p class="as-warning as-print-hide">Assinatura salva. A confirmação na origem está pendente; o sistema tentará novamente.</p><?php endif; ?>
-                <button type="button" class="as-button as-print-hide" onclick="window.print()">Imprimir comprovante</button>
+                <?php if ($batch !== null): ?><a class="as-button as-print-hide" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Ver termo completo</a><?php else: ?><button type="button" class="as-button as-print-hide" onclick="window.print()">Imprimir comprovante</button><?php endif; ?>
             </section>
         <?php elseif ($canSign): ?>
-            <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados e peça à pessoa responsável para assinar no quadro abaixo.</p>
-                <form method="post" class="as-form" id="as-sign-form" data-sign-form>
-                    <?= assignature_csrf_field() ?><input type="hidden" name="id" value="<?= (int) $request['id'] ?>"><input type="hidden" name="sign" value="1"><input type="hidden" name="signature_png" data-signature-value>
-                    <label>Nome de quem assina<input name="signer_name" required maxlength="255" autocomplete="name"></label>
-                    <label>Documento (opcional)<input name="signer_document" maxlength="100"></label>
-                    <div class="as-signature-field"><span>Assinatura</span><canvas data-signature-canvas aria-label="Área para desenhar a assinatura"></canvas><button type="button" class="as-text-button" data-signature-clear>Limpar assinatura</button></div>
-                    <label class="as-checkbox"><input type="checkbox" name="accepted" value="1" required> Confirmei a identidade e os dados deste pedido</label>
-                    <p class="as-form-error" data-signature-error hidden></p><button class="as-button as-button-wide">Concluir assinatura</button>
-                </form>
-            </section>
+            <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados do pedido. Você poderá assinar agora ou preparar o termo para assinatura em papel.</p><a class="as-button as-button-wide" href="<?= assignature_h(assignature_url('/front/batch.php?ids%5B%5D=' . (int) $request['id'])) ?>">Escolher como assinar <i class="ti ti-arrow-right"></i></a></section>
+        <?php elseif ($batch !== null && (string) $batch['status'] === 'awaiting_upload'): ?>
+            <section class="as-panel"><h2>Aguardando arquivo assinado</h2><p>Este pedido faz parte do termo #<?= (int) $batch['id'] ?>. Após enviar o arquivo, a retirada será concluída automaticamente.</p><a class="as-button" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Abrir termo</a></section>
         <?php else: ?>
             <section class="as-panel"><h2>Aguardando assinatura</h2><p>Você pode visualizar este pedido, mas não tem permissão para coletar a assinatura.</p></section>
         <?php endif; ?>

@@ -4,7 +4,7 @@
 require_once __DIR__ . '/inc/profile.class.php';
 require_once __DIR__ . '/inc/app.class.php';
 
-define('PLUGIN_ASSIGNATURE_VERSION', '0.1.0');
+define('PLUGIN_ASSIGNATURE_VERSION', '0.2.0');
 
 function plugin_init_assignature(): void
 {
@@ -20,6 +20,7 @@ function plugin_init_assignature(): void
     $PLUGIN_HOOKS['config_page']['assignature'] = 'front/admin.php';
     $PLUGIN_HOOKS['secured_fields']['assignature'] = [
         'glpi_plugin_assignature_sources.token_encrypted',
+        'glpi_plugin_assignature_batches.document_encrypted',
     ];
     $versioned = static function (string $path): string {
         $mtime = @filemtime(__DIR__ . '/' . $path);
