@@ -16,7 +16,7 @@ function assignature_url(string $path = ''): string
 
 function assignature_logo_url(): string
 {
-    return assignature_url('/logo.png?v=' . (int) @filemtime(dirname(__DIR__) . '/logo.png'));
+    return assignature_url('/logo.png?v=' . (int) @filemtime(dirname(__DIR__) . '/public/logo.png'));
 }
 
 function assignature_now(): string
