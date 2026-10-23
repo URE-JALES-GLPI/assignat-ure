@@ -6,12 +6,45 @@
         var checks = Array.prototype.slice.call(document.querySelectorAll('[data-batch-check]'));
         var button = selection.querySelector('[data-batch-button]');
         var count = selection.querySelector('[data-selected-count]');
+        var entry = document.querySelector('[data-batch-entry]');
+        var start = document.querySelector('[data-batch-start]');
+        var cancel = selection.querySelector('[data-batch-cancel]');
+        var active = false;
         function updateSelection() {
             var total = checks.filter(function (check) { return check.checked; }).length;
             count.textContent = String(total);
             button.disabled = total === 0;
+            checks.forEach(function (check) {
+                var card = check.closest('.as-request');
+                card.classList.toggle('is-selected', check.checked);
+                check.parentElement.querySelector('[data-check-label]').textContent = check.checked ? 'Selecionado' : 'Selecionar';
+            });
         }
         checks.forEach(function (check) { check.addEventListener('change', updateSelection); });
+        function setBatchMode(enabled) {
+            active = enabled;
+            selection.hidden = !enabled;
+            if (entry) { entry.hidden = enabled; }
+            document.querySelectorAll('[data-batch-option]').forEach(function (option) { option.hidden = !enabled; });
+            document.querySelectorAll('[data-single-action]').forEach(function (action) { action.hidden = enabled; });
+            if (!enabled) {
+                checks.forEach(function (check) { check.checked = false; });
+                all.textContent = 'Selecionar todos';
+            }
+            updateSelection();
+            if (enabled) { selection.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }
+        }
+        if (start) { start.addEventListener('click', function () { setBatchMode(true); }); }
+        cancel.addEventListener('click', function () { setBatchMode(false); });
+        checks.forEach(function (check) {
+            var cardLink = check.closest('.as-request').querySelector('.as-request-link');
+            cardLink.addEventListener('click', function (event) {
+                if (!active) { return; }
+                event.preventDefault();
+                check.checked = !check.checked;
+                updateSelection();
+            });
+        });
         var all = selection.querySelector('[data-select-all]');
         all.addEventListener('click', function () {
             var shouldSelect = checks.some(function (check) { return !check.checked; });

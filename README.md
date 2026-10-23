@@ -31,7 +31,7 @@ Cada card na lista de retirada gera seu próprio pedido e comprovante, inclusive
 
 ## Assinar um ou vários pedidos
 
-Na lista de assinaturas, selecione até 100 pedidos pendentes e clique em **Assinar selecionados**. Ao abrir um pedido isolado, use **Escolher como assinar**. Um lote associa uma pessoa e um técnico a todos os pedidos selecionados, mas cada pedido continua recebendo seu próprio retorno para o plugin de origem.
+Na lista de assinaturas, clique em **Assinar em lote** para ativar a seleção, escolha até 100 pedidos pendentes e clique em **Continuar com selecionados**. Ao abrir um pedido isolado, use **Escolher como assinar**. Um lote associa uma pessoa e um técnico a todos os pedidos selecionados, mas cada pedido continua recebendo seu próprio retorno para o plugin de origem.
 
 * **Assinar agora:** escolha o técnico GLPI, informe o nome completo de quem retira, escolha CPF ou RG, digite o documento e desenhe a assinatura. O CPF recebe a máscara `000.000.000-00` e é validado pelos dígitos verificadores no navegador e no servidor. O RG é mascarado conforme o comprimento; sua validação é apenas de formato, porque as regras variam por estado. O documento é criptografado com a chave do GLPI.
 * **Assinar depois:** escolha o técnico e, opcionalmente, uma pessoa já cadastrada no GLPI para preencher o nome. O termo reúne todos os pedidos e pode ser impresso na fila CUPS do servidor ou pelo navegador. Depois que a pessoa assinar o papel, informe o nome e documento, envie PDF, PNG ou JPG (até 10 MB) e os pedidos serão marcados como assinados. O arquivo é salvo no armazenamento privado do GLPI e verificado por SHA-256 ao ser aberto. Se o termo não for mais usado, cancele-o para liberar os pedidos.
