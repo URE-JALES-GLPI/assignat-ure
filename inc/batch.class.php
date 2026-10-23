@@ -665,11 +665,7 @@ class PluginAssignatureBatch
                 throw new RuntimeException('Não foi possível gerar o PDF para impressão.');
             }
             $pipes = [];
-            $command = ['/usr/bin/lp', '-d', $queue, '-n', $paper ? '1' : '2', '-o', 'media=A4'];
-            if ((int) $term['pages'] > 1) {
-                array_push($command, '-o', 'sides=two-sided-long-edge');
-            }
-            $command[] = $temp;
+            $command = self::printCommand($queue, $paper, (int) $term['pages'], $temp);
             $process = proc_open($command,
                 [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             if (!is_resource($process)) {
@@ -690,5 +686,15 @@ class PluginAssignatureBatch
         } finally {
             @unlink($temp);
         }
+    }
+
+    public static function printCommand(string $queue, bool $paper, int $pages, string $path): array
+    {
+        $command = ['/usr/bin/lp', '-d', $queue, '-n', $paper ? '1' : '2', '-o', 'media=A4'];
+        if ($pages > 1) {
+            array_push($command, '-o', 'sides=two-sided-long-edge');
+        }
+        $command[] = $path;
+        return $command;
     }
 }

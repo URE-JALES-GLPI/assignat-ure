@@ -25,3 +25,13 @@ expectDocumentError('CPF', '52998224724');
 expectDocumentError('RG', '123');
 expectDocumentError('RG', '1234X6789');
 echo "Validação de CPF e RG: OK\n";
+
+$singlePaper = PluginAssignatureBatch::printCommand('HP_PeB', true, 1, '/tmp/termo.pdf');
+$duplexPaper = PluginAssignatureBatch::printCommand('HP_PeB', true, 2, '/tmp/termo.pdf');
+$duplexDigital = PluginAssignatureBatch::printCommand('HP_PeB', false, 2, '/tmp/termo.pdf');
+if ($singlePaper[4] !== '1' || in_array('sides=two-sided-long-edge', $singlePaper, true)
+    || $duplexPaper[4] !== '1' || !in_array('sides=two-sided-long-edge', $duplexPaper, true)
+    || $duplexDigital[4] !== '2' || !in_array('sides=two-sided-long-edge', $duplexDigital, true)) {
+    throw new RuntimeException('Opções de cópias e frente e verso incorretas.');
+}
+echo "Impressão: 1 cópia no papel, 2 no digital, frente e verso em múltiplas páginas: OK\n";
