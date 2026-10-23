@@ -65,7 +65,7 @@ Html::header('Administração — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 
 ?>
 <main class="as-page">
     <header class="as-page-head">
-        <div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Administração</h1><p>Conecte plugins e defina o que cada usuário pode ver e assinar.</p></div>
+        <div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Administração</h1><p>Conecte plugins e defina o que cada usuário pode ver e assinar.</p></div></div>
         <a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar às assinaturas</a>
     </header>
 

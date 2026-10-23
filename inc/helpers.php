@@ -14,6 +14,11 @@ function assignature_url(string $path = ''): string
     return (string) $CFG_GLPI['root_doc'] . '/plugins/assignature' . $path;
 }
 
+function assignature_logo_url(): string
+{
+    return assignature_url('/logo.png?v=' . (int) @filemtime(dirname(__DIR__) . '/logo.png'));
+}
+
 function assignature_now(): string
 {
     return $_SESSION['glpi_currenttime'] ?? date('Y-m-d H:i:s');

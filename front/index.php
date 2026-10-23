@@ -14,7 +14,7 @@ $sources = PluginAssignatureSource::all(true);
 Html::header('Assinaturas — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
 ?>
 <main class="as-page">
-    <header class="as-page-head"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Assinaturas</h1><p>Pedidos de assinatura dos plugins conectados.</p></div>
+    <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Assinaturas</h1><p>Pedidos de assinatura dos plugins conectados.</p></div></div>
         <?php if (PluginAssignatureApp::canAdmin()): ?><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/admin.php')) ?>">Administração</a><?php endif; ?>
     </header>
     <div class="as-tabs"><a href="?status=&amp;source=<?= $sourceId ?>" class="<?= $status === '' ? 'is-active' : '' ?>">Todas</a><a href="?status=pending&amp;source=<?= $sourceId ?>" class="<?= $status === 'pending' ? 'is-active' : '' ?>">Pendentes</a><a href="?status=done&amp;source=<?= $sourceId ?>" class="<?= $status === 'done' ? 'is-active' : '' ?>">Concluídas</a></div>

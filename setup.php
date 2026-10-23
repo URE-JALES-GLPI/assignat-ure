@@ -21,8 +21,12 @@ function plugin_init_assignature(): void
     $PLUGIN_HOOKS['secured_fields']['assignature'] = [
         'glpi_plugin_assignature_sources.token_encrypted',
     ];
-    $PLUGIN_HOOKS['add_css']['assignature'] = ['public/css/assignature.css?v=' . PLUGIN_ASSIGNATURE_VERSION];
-    $PLUGIN_HOOKS['add_javascript']['assignature'] = ['public/js/assignature.js?v=' . PLUGIN_ASSIGNATURE_VERSION];
+    $versioned = static function (string $path): string {
+        $mtime = @filemtime(__DIR__ . '/' . $path);
+        return $path . '?v=' . ($mtime ?: PLUGIN_ASSIGNATURE_VERSION);
+    };
+    $PLUGIN_HOOKS['add_css']['assignature'] = [$versioned('public/css/assignature.css')];
+    $PLUGIN_HOOKS['add_javascript']['assignature'] = [$versioned('public/js/assignature.js')];
 }
 
 function plugin_version_assignature(): array

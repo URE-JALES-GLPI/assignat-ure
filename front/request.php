@@ -68,7 +68,7 @@ header('Cache-Control: no-store');
 Html::header('Assinatura ' . $request['code'] . ' — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
 ?>
 <main class="as-page as-detail-page">
-    <header class="as-page-head"><div><p class="as-eyebrow"><?= assignature_h($source['name']) ?> · <?= assignature_h($request['code']) ?></p><h1><?= assignature_h($request['title']) ?></h1><p><?= assignature_h($request['summary']) ?></p></div><a class="as-button as-button-light as-print-hide" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>
+    <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow"><?= assignature_h($source['name']) ?> · <?= assignature_h($request['code']) ?></p><h1><?= assignature_h($request['title']) ?></h1><p><?= assignature_h($request['summary']) ?></p></div></div><a class="as-button as-button-light as-print-hide" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>
     <div class="as-detail-grid">
         <section class="as-panel"><div class="as-section-title"><h2>Pedido</h2><span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Concluída' : 'Pendente' ?></span></div>
             <?php if ((string) ($payload['description'] ?? '') !== ''): ?><p><?= nl2br(assignature_h($payload['description'])) ?></p><?php endif; ?>
