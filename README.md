@@ -4,7 +4,15 @@ Central de assinaturas para GLPI 12. O plugin recebe pedidos dos plugins de orig
 
 ## Instalação
 
-O nome interno do plugin é `assignature`. Copie este projeto para `plugins/assignature` na instalação do GLPI (o diretório de desenvolvimento pode continuar como `D:\Projetos\signat-ure`), instale e ative em **Configurar → Plugins**. Requer PHP 8.2+, cURL e GLPI 12. Os arquivos de assinatura ficam na tabela do plugin e são servidos apenas após a verificação das permissões.
+O nome interno do plugin é `assignature`. A pasta no servidor **precisa** ser `plugins/assignature`, mesmo que o repositório GitHub se chame `assignat-ure` e o diretório de desenvolvimento seja `D:\Projetos\signat-ure`. Os arquivos `setup.php` e `hook.php` devem ficar diretamente nessa pasta.
+
+Para uma instalação nova, execute a partir da pasta `plugins` do GLPI:
+
+```bash
+git clone https://github.com/poiattileo/assignat-ure.git assignature
+```
+
+Se você já clonou em `plugins/assignat-ure`, renomeie a pasta com `mv assignat-ure assignature` (verifique antes se `plugins/assignature` ainda não existe). Os próximos `git pull` continuam funcionando dentro da pasta renomeada. Depois, instale e ative em **Configurar → Plugins**. A aba **Instalado** mostra os plugins já instalados; apenas copiar ou atualizar os arquivos não executa a instalação. Requer PHP 8.2+, cURL e GLPI 12. Os arquivos de assinatura ficam na tabela do plugin e são servidos apenas após a verificação das permissões.
 
 Na instalação, o perfil `Super-Admin` recebe acesso de visualização e administração. Ajuste os demais perfis na aba **Assignat-ure** de cada perfil. O administrador do plugin pode, em **Ferramentas → Assignat-ure → Administração**, liberar por usuário e fonte a visualização de pendentes, concluídas e a coleta de assinatura. A permissão do perfil continua necessária; um acesso por usuário sozinho não libera o plugin.
 
