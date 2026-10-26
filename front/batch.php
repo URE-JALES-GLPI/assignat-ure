@@ -7,6 +7,7 @@ $userId = (int) Session::getLoginUserID();
 $batchId = max(0, (int) ($_GET['id'] ?? $_POST['batch_id'] ?? 0));
 $selectedIds = array_values(array_unique(array_filter(array_map('intval', (array) ($_GET['ids'] ?? $_POST['ids'] ?? [])))));
 if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
+    $redirectUrl = null;
     try {
         $action = (string) ($_POST['action'] ?? '');
         if ($action === 'create') {
@@ -30,17 +31,19 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         } elseif ($action === 'cancel') {
             PluginAssignatureBatch::cancel($batchId, $userId);
             assignature_flash('Termo cancelado. Os pedidos voltaram a ficar disponíveis.');
-            Html::redirect(assignature_url('/front/index.php?status=pending'));
+            $redirectUrl = assignature_url('/front/index.php?status=pending');
         } elseif ($action === 'print') {
             $job = PluginAssignatureBatch::printTerm($batchId, $userId);
             assignature_flash('Termo enviado para ' . PluginAssignatureBatch::printerQueue() . '. ' . $job);
         } else {
             throw new RuntimeException('Ação inválida.');
         }
-        $updatedBatch = PluginAssignatureBatch::get($batchId);
-        Html::redirect($updatedBatch !== null && PluginAssignatureBatch::canManage($updatedBatch, $userId)
-            ? assignature_url('/front/batch.php?id=' . $batchId)
-            : assignature_url('/front/index.php'));
+        if ($redirectUrl === null) {
+            $updatedBatch = PluginAssignatureBatch::get($batchId);
+            $redirectUrl = $updatedBatch !== null && PluginAssignatureBatch::canManage($updatedBatch, $userId)
+                ? assignature_url('/front/batch.php?id=' . $batchId)
+                : assignature_url('/front/index.php');
+        }
     } catch (Throwable $e) {
         $message = $e->getMessage();
         if ($batchId > 0 && (string) ($_POST['action'] ?? '') === 'create') {
@@ -49,10 +52,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 : 'Termo criado, mas a impressão falhou: ') . $message . ' Abra o termo para tentar novamente.';
         }
         assignature_flash($message, false);
-        Html::redirect($batchId > 0
+        $redirectUrl = $batchId > 0
             ? assignature_url('/front/batch.php?id=' . $batchId)
-            : assignature_url('/front/index.php?status=pending'));
+            : assignature_url('/front/index.php?status=pending');
     }
+    Html::redirect($redirectUrl);
 }
 
 $batch = $batchId > 0 ? PluginAssignatureBatch::get($batchId) : null;
@@ -117,7 +121,7 @@ Html::header('Lote de assinaturas — Assignat-ure', $_SERVER['PHP_SELF'], 'tool
             <p class="as-term-declaration">Eu, <strong><?= assignature_h($technicianName) ?></strong>, técnico(a) responsável, declaro que os equipamentos listados foram disponibilizados ao responsável identificado neste termo, com os resultados e observações registrados no atendimento.</p>
             <div class="as-term-facts"><div><small>Data da entrega</small><strong><?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['created_at'])) ?></strong></div><div><small>Plugin(s) de origem</small><strong><?= assignature_h($termContext['sources'] ?: '—') ?></strong></div><div><small>Técnico responsável</small><strong><?= assignature_h($technicianName . ' · ' . $batch['technician_document_type'] . ' ' . PluginAssignatureBatch::technicianDocument($batch)) ?></strong></div><div><small>Responsável pela retirada</small><strong><?= assignature_h($batch['signer_name'] ?: '________________________________') ?></strong></div><div><small>Quadro / atendimento</small><strong><?= assignature_h($termContext['boards'] ?: 'Não informado') ?></strong></div><div><small>Itens neste termo</small><strong><?= count($termRows) ?> equipamento(s) · <?= count($requests) ?> pedido(s)</strong></div></div>
             <h3 class="as-term-section-title">Equipamentos entregues</h3>
-            <table class="as-term-table"><thead><tr><th>#</th><th>Equipamento / pedido</th><th>Tipo</th><th>Status final</th><th>Serviço / observações</th></tr></thead><tbody><?php foreach ($termRows as $index => $row): ?><tr><td><?= $index + 1 ?></td><td><strong><?= assignature_h($row['name']) ?></strong><small>#<?= assignature_h($row['code']) ?></small></td><td><?= assignature_h($row['type']) ?></td><td><strong><?= assignature_h($row['status']) ?></strong></td><td><?= nl2br(assignature_h($row['report'] !== '' ? $row['report'] : '—')) ?></td></tr><?php endforeach; ?></tbody></table>
+            <table class="as-term-table"><thead><tr><th>#</th><th>Equipamento / pedido</th><th>Status final</th><th>Serviço / observações</th></tr></thead><tbody><?php foreach ($termRows as $index => $row): ?><tr><td><?= $index + 1 ?></td><td><strong><?= assignature_h($row['name']) ?></strong><small>#<?= assignature_h($row['code']) ?></small></td><td><strong><?= assignature_h($row['status']) ?></strong></td><td><?= nl2br(assignature_h($row['report'] !== '' ? $row['report'] : '—')) ?></td></tr><?php endforeach; ?></tbody></table>
             <h3 class="as-term-section-title">Assinaturas</h3>
             <div class="as-term-signatures"><div class="as-term-signature-card"><div class="as-term-signature-ink"><?php if ((string) ($batch['technician_signature_png'] ?? '') !== ''): ?><img src="data:image/png;base64,<?= assignature_h($batch['technician_signature_png']) ?>" alt="Assinatura do técnico"><?php endif; ?></div><strong>Responsável pela entrega (técnico)</strong><small>Nome: <?= assignature_h($technicianName) ?></small><small>Documento: <?= assignature_h($batch['technician_document_type'] . ' ' . PluginAssignatureBatch::technicianDocument($batch)) ?></small></div><div class="as-term-signature-card"><div class="as-term-signature-ink"><?php if ((string) $batch['method'] === 'digital'): ?><img src="data:image/png;base64,<?= assignature_h($batch['signature_png']) ?>" alt="Assinatura de quem retira"><?php endif; ?></div><strong>Responsável pelo recebimento</strong><small>Nome: <?= assignature_h($batch['signer_name'] ?: '____________________________') ?></small><small>Documento: <?= (string) $batch['method'] === 'digital' ? assignature_h($batch['document_type'] . ' ' . PluginAssignatureBatch::decryptedDocument($batch)) : '____________________________' ?></small><?php if ((string) $batch['method'] === 'digital'): ?><small>Assinado em <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['completed_at'], true)) ?></small><?php endif; ?></div></div>
             <p class="as-term-foot">[URE] Assignat-ure · Termo #<?= $batchId ?> · <?= (string) $batch['status'] === 'done' ? 'Assinatura registrada' : 'Aguardando assinatura no papel' ?></p>
@@ -127,7 +131,7 @@ Html::header('Lote de assinaturas — Assignat-ure', $_SERVER['PHP_SELF'], 'tool
             <?php if ((string) $batch['status'] === 'done' && (string) $batch['method'] === 'paper'): ?><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/file.php?id=' . $batchId)) ?>"><i class="ti ti-download"></i> Ver arquivo assinado</a><?php endif; ?>
         </div>
          <?php if ((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload' && !empty($batch['printed_at'])): ?>
-            <section class="as-panel as-upload-panel as-print-hide"><h2>Depois da assinatura no papel</h2><p class="as-hint">Digitalize ou fotografe o termo assinado e envie aqui. Os pedidos só serão concluídos após o arquivo ser salvo.</p><form method="post" enctype="multipart/form-data" class="as-form" data-paper-upload><?= assignature_csrf_field() ?><input type="hidden" name="action" value="upload"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><div class="as-form-pair"><label>Nome completo de quem assinou<input name="signer_name" data-uppercase required maxlength="255" value="<?= assignature_h($batch['signer_name']) ?>"></label><label>Tipo de documento<select name="document_type" data-document-type required><option value="">Selecione</option><option value="CPF" <?= $batch['document_type'] === 'CPF' ? 'selected' : '' ?>>CPF</option><option value="RG" <?= $batch['document_type'] === 'RG' ? 'selected' : '' ?>>RG</option></select></label></div><label>Número do documento<input name="signer_document" data-document-input inputmode="numeric" autocomplete="off" required value="<?= assignature_h(PluginAssignatureBatch::decryptedDocument($batch)) ?>"></label><label>Termo assinado (PDF, PNG ou JPG · até 10 MB)<input type="file" name="signed_file" accept="application/pdf,image/png,image/jpeg" required></label><button class="as-button" type="submit">Enviar arquivo e concluir <?= count($requests) ?> pedido(s)</button></form>
+            <section class="as-panel as-upload-panel as-print-hide"><h2>Depois da assinatura no papel</h2><p class="as-hint">Digitalize ou fotografe o termo assinado e envie aqui. Apenas o arquivo é obrigatório; os dados da pessoa são opcionais. Os pedidos serão concluídos após o arquivo ser salvo.</p><form method="post" enctype="multipart/form-data" class="as-form" data-paper-upload><?= assignature_csrf_field() ?><input type="hidden" name="action" value="upload"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><div class="as-form-pair"><label>Nome de quem assinou (opcional)<input name="signer_name" data-uppercase maxlength="255" value="<?= assignature_h($batch['signer_name']) ?>"></label><label>Tipo de documento (opcional)<select name="document_type" data-document-type><option value="">Selecione</option><option value="CPF" <?= $batch['document_type'] === 'CPF' ? 'selected' : '' ?>>CPF</option><option value="RG" <?= $batch['document_type'] === 'RG' ? 'selected' : '' ?>>RG</option></select></label></div><label>Número do documento (opcional)<input name="signer_document" data-document-input inputmode="numeric" autocomplete="off" value="<?= assignature_h(PluginAssignatureBatch::decryptedDocument($batch)) ?>"></label><label>Termo assinado (PDF, PNG ou JPG · até 10 MB)<input type="file" name="signed_file" accept="application/pdf,image/png,image/jpeg" required></label><button class="as-button" type="submit">Enviar arquivo e concluir <?= count($requests) ?> pedido(s)</button></form>
             <form method="post" class="as-cancel-form" onsubmit="return confirm('Cancelar o termo e liberar os pedidos para uma nova assinatura?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-text-button">Cancelar termo</button></form></section>
          <?php elseif ((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload'): ?><section class="as-panel as-upload-panel as-print-hide"><h2>Impressão pendente</h2><p class="as-hint">Envie o termo para a impressora configurada. Depois que a pessoa assinar à mão, o envio do arquivo será liberado.</p><form method="post" class="as-cancel-form" onsubmit="return confirm('Cancelar o termo e liberar os pedidos para uma nova assinatura?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-text-button">Cancelar termo</button></form></section><?php endif; ?>
         <?php if ((string) $batch['status'] === 'done'): ?><section class="as-panel as-print-hide"><h2>Pedidos concluídos</h2><div class="as-batch-items"><?php foreach ($requests as $request): ?><div><a href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>"><?= assignature_h($request['code']) ?> · <?= assignature_h($request['title']) ?></a><span><?= $request['callback_state'] === 'confirmed' ? 'Confirmado na origem' : 'Confirmação pendente' ?></span></div><?php endforeach; ?></div></section><?php endif; ?>

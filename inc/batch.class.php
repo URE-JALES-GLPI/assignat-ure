@@ -363,10 +363,11 @@ class PluginAssignatureBatch
             }
         }
         $signerName = mb_strtoupper(trim($signerName), 'UTF-8');
-        if (mb_strlen($signerName) > 255 || count(preg_split('/\s+/u', $signerName)) < 2) {
-            throw new RuntimeException('Informe o nome completo de quem assinou o termo.');
+        if (mb_strlen($signerName) > 255) {
+            throw new RuntimeException('O nome informado é muito longo.');
         }
-        $formatted = self::document($documentType, $document);
+        $hasDocument = trim($documentType) !== '' && trim($document) !== '';
+        $formatted = $hasDocument ? self::document($documentType, $document) : '';
         if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
             || !is_uploaded_file((string) ($file['tmp_name'] ?? ''))
             || (int) ($file['size'] ?? 0) < 100 || (int) ($file['size'] ?? 0) > 10_000_000) {
@@ -412,8 +413,8 @@ class PluginAssignatureBatch
             @chmod($path, 0600);
             $DB->update(self::TABLE, [
                 'status' => 'done', 'signer_name' => $signerName,
-                'document_type' => strtoupper($documentType),
-                'document_encrypted' => (new GLPIKey())->encrypt($formatted),
+                'document_type' => $hasDocument ? strtoupper($documentType) : '',
+                'document_encrypted' => $hasDocument ? (new GLPIKey())->encrypt($formatted) : '',
                 'file_name' => mb_substr(basename((string) ($file['name'] ?? 'termo')), 0, 255),
                 'file_extension' => $extension, 'file_sha256' => hash('sha256', $content),
                 'completed_by_users_id' => $userId, 'completed_at' => $now,
@@ -581,13 +582,12 @@ class PluginAssignatureBatch
             }
             $html = '<table cellpadding="8" width="100%" style="font-size:8.5px">'
                 . '<thead><tr style="background-color:#eaf3fc;color:#1b4c7e"><th width="6%" style="' . $border . '"><b>#</b></th>'
-                . '<th width="25%" style="' . $border . '"><b>EQUIPAMENTO / PEDIDO</b></th><th width="18%" style="' . $border . '"><b>TIPO</b></th>'
-                . '<th width="16%" style="' . $border . '"><b>STATUS FINAL</b></th><th width="35%" style="' . $border . '"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
+                . '<th width="27%" style="' . $border . '"><b>EQUIPAMENTO / PEDIDO</b></th>'
+                . '<th width="17%" style="' . $border . '"><b>STATUS FINAL</b></th><th width="50%" style="' . $border . '"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
             foreach ($chunk as $offset => $row) {
                 $html .= '<tr><td style="' . $border . '">' . ($chunkIndex * 12 + $offset + 1)
                     . '</td><td style="' . $border . '"><b>' . assignature_h($row['name'])
-                    . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td><td style="' . $border . '">'
-                    . assignature_h($row['type']) . '</td><td style="' . $border . '"><b>'
+                    . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td><td style="' . $border . '"><b>'
                     . assignature_h($row['status']) . '</b></td><td style="' . $border . '">'
                     . assignature_h($row['report'] !== '' ? $row['report'] : '—') . '</td></tr>';
             }

@@ -164,18 +164,7 @@
     }
     var upload = document.querySelector('[data-paper-upload]');
     if (upload) {
-        var validUploadDoc = bindDocument(upload);
-        upload.addEventListener('submit', function (event) {
-            if (upload.querySelector('[name="signer_name"]').value.trim().split(/\s+/).length < 2) {
-                event.preventDefault();
-                alert('Informe nome e sobrenome de quem assinou.');
-                return;
-            }
-            if (!validUploadDoc()) {
-                event.preventDefault();
-                alert('Confira o número do documento antes de enviar.');
-            }
-        });
+        bindDocument(upload);
     }
 
     var technicianForm = document.querySelector('[data-technician-form]');

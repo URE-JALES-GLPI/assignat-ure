@@ -280,7 +280,9 @@ class PluginAssignatureRequest
             PluginAssignatureSource::api($source, 'POST', [
                 'action' => 'signature_completed',
                 'id' => (string) $request['external_id'],
-                'signer_name' => (string) $request['signer_name'],
+                'signer_name' => trim((string) $request['signer_name']) !== ''
+                    ? (string) $request['signer_name']
+                    : 'Responsável conforme termo assinado em papel',
                 'signed_at' => (string) $request['signed_at'],
                 'signature_sha256' => $hash,
             ]);
