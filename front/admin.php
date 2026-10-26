@@ -26,6 +26,24 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             }
             $count = PluginAssignatureRequest::syncSource($source);
             assignature_flash($count . ' pedido(s) sincronizado(s).');
+        } elseif ($action === 'scope_save_multi') {
+            $rows = [];
+            foreach ((array) ($_POST['sources'] ?? []) as $sid => $on) {
+                $sid = (int) $sid;
+                if ($sid <= 0 || empty($on)) {
+                    continue;
+                }
+                $rows[$sid] = [
+                    'pending' => !empty($_POST['see_pending'][$sid]),
+                    'done' => !empty($_POST['see_done'][$sid]),
+                    'sign' => !empty($_POST['can_sign'][$sid]),
+                ];
+            }
+            $kept = PluginAssignatureScope::replaceForUser((int) ($_POST['users_id'] ?? 0), $rows);
+            assignature_flash($kept > 0
+                ? 'Acessos do usuário salvos (' . $kept . ' fonte(s)).'
+                : 'Nenhuma fonte liberada: o usuário ficou sem acesso aos pedidos.');
+            Html::redirect(assignature_url('/front/admin.php?user=' . (int) ($_POST['users_id'] ?? 0)));
         } elseif ($action === 'scope_save') {
             PluginAssignatureScope::save(
                 (int) ($_POST['users_id'] ?? 0),
@@ -114,22 +132,77 @@ echo "<script>document.title = 'Assignat-ure';</script>";
 
         <section class="as-panel">
             <div class="as-section-title"><h2>Acesso por usuário</h2></div>
-            <p class="as-hint">O perfil do GLPI precisa ter a permissão “Visualizar o plugin”. Aqui você escolhe a fonte, os estados visíveis e quem pode coletar a assinatura.</p>
-            <form method="post" class="as-form">
-                <?= assignature_csrf_field() ?><input type="hidden" name="action" value="scope_save">
+            <p class="as-hint">O perfil do GLPI precisa ter a permissão “Visualizar o plugin”. Aqui você escolhe as fontes que o usuário pode ver (uma ou várias), os estados visíveis e quem pode coletar a assinatura.</p>
+            <?php $userScopes = $editUserId > 0 ? PluginAssignatureScope::forUser($editUserId) : []; ?>
+            <form method="post" class="as-form" id="as-scope-form">
+                <?= assignature_csrf_field() ?><input type="hidden" name="action" value="scope_save_multi">
                 <label>Usuário<?php User::dropdown(['name' => 'users_id', 'right' => 'all', 'display_emptychoice' => true, 'value' => $editUserId]); ?></label>
-                <label>Fonte<select name="source_id" required><option value="">Selecione</option><?php foreach ($sources as $source): ?><option value="<?= (int) $source['id'] ?>" <?= $editScopeSourceId === (int) $source['id'] ? 'selected' : '' ?>><?= assignature_h($source['name']) ?></option><?php endforeach; ?></select></label>
-                <div class="as-checks"><label><input type="checkbox" name="see_pending" value="1" <?= !empty($editScope['see_pending']) ? 'checked' : '' ?>> Ver pendentes</label><label><input type="checkbox" name="see_done" value="1" <?= !empty($editScope['see_done']) ? 'checked' : '' ?>> Ver concluídas</label><label><input type="checkbox" name="can_sign" value="1" <?= !empty($editScope['can_sign']) ? 'checked' : '' ?>> Pode assinar</label></div>
-                <button class="as-button" <?= $sources === [] ? 'disabled' : '' ?>>Salvar acesso</button>
+                <p class="as-hint" style="margin:6px 0 0;"><?= $editUserId > 0 ? 'Marque todas as fontes que este usuário pode ver. Desmarcar uma fonte remove o acesso dele a ela.' : 'Escolha o usuário para marcar as fontes que ele pode ver.' ?></p>
+                <?php foreach ($sources as $source): $sid = (int) $source['id']; $sc = $userScopes[$sid] ?? null; ?>
+                    <div class="as-scope-pick" style="border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;margin-top:8px;">
+                        <label class="as-checkbox"><input type="checkbox" name="sources[<?= $sid ?>]" value="1" data-source-toggle <?= $sc !== null ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> <strong><?= assignature_h($source['name']) ?></strong></label>
+                        <div class="as-checks">
+                            <label><input type="checkbox" name="see_pending[<?= $sid ?>]" value="1" data-flag="pending" <?= !empty($sc['see_pending']) ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> Ver pendentes</label>
+                            <label><input type="checkbox" name="see_done[<?= $sid ?>]" value="1" data-flag="done" <?= !empty($sc['see_done']) ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> Ver concluídas</label>
+                            <label><input type="checkbox" name="can_sign[<?= $sid ?>]" value="1" data-flag="sign" <?= !empty($sc['can_sign']) ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> Pode assinar</label>
+                        </div>
+                    </div>
+                <?php endforeach; ?>
+                <button class="as-button" <?= ($sources === [] || $editUserId <= 0) ? 'disabled' : '' ?>>Salvar acessos</button>
             </form>
+            <script>
+            (function () {
+                var f = document.getElementById('as-scope-form');
+                if (!f) { return; }
+                var sel = f.querySelector('[name="users_id"]');
+                var cur = <?= (int) $editUserId ?>;
+                if (sel) {
+                    var go = function () {
+                        var v = parseInt(sel.value, 10) || 0;
+                        if (v !== cur) { window.location.href = '?user=' + v + '#as-scope-form'; }
+                    };
+                    if (window.jQuery) { window.jQuery(sel).on('change', go); } else { sel.addEventListener('change', go); }
+                }
+                f.querySelectorAll('.as-scope-pick').forEach(function (box) {
+                    var tg = box.querySelector('[data-source-toggle]');
+                    var fl = function (n) { return box.querySelector('[data-flag="' + n + '"]'); };
+                    if (!tg) { return; }
+                    tg.addEventListener('change', function () {
+                        if (tg.checked && !fl('pending').checked && !fl('done').checked && !fl('sign').checked) {
+                            fl('pending').checked = true; fl('done').checked = true;
+                        }
+                        if (!tg.checked) { ['pending', 'done', 'sign'].forEach(function (n) { fl(n).checked = false; }); }
+                    });
+                    box.querySelectorAll('[data-flag]').forEach(function (c) {
+                        c.addEventListener('change', function () {
+                            if (c.checked) { tg.checked = true; }
+                            if (c.getAttribute('data-flag') === 'sign' && c.checked) { fl('pending').checked = true; }
+                            if (!fl('pending').checked && !fl('done').checked) { tg.checked = false; fl('sign').checked = false; }
+                        });
+                    });
+                });
+            })();
+            </script>
             <?php if ($scopes !== []): ?>
                 <div class="as-scopes"><h3>Acessos configurados</h3>
-                <?php foreach ($scopes as $scope):
+                <?php
+                $byUser = [];
+                foreach ($scopes as $scope) { $byUser[(int) $scope['users_id']][] = $scope; }
+                foreach ($byUser as $uid => $list):
                     $user = new User();
-                    $userName = $user->getFromDB((int) $scope['users_id']) ? $user->getFriendlyName() : '#' . $scope['users_id'];
-                    $sourceName = '#' . $scope['sources_id'];
-                    foreach ($sources as $source) { if ((int) $source['id'] === (int) $scope['sources_id']) { $sourceName = (string) $source['name']; break; } }
-                    ?><div class="as-scope-row"><div><strong><?= assignature_h($userName) ?></strong><small><?= assignature_h($sourceName) ?></small></div><span><?= (int) $scope['see_pending'] ? 'Pendentes ' : '' ?><?= (int) $scope['see_done'] ? 'Concluídas ' : '' ?><?= (int) $scope['can_sign'] ? '· Assina' : '' ?></span><a class="as-button as-button-light as-button-small" href="?user=<?= (int) $scope['users_id'] ?>&amp;scope_source=<?= (int) $scope['sources_id'] ?>">Editar</a></div><?php endforeach; ?>
+                    $userName = $user->getFromDB($uid) ? $user->getFriendlyName() : '#' . $uid;
+                    $lines = [];
+                    foreach ($list as $scope) {
+                        $sourceName = '#' . $scope['sources_id'];
+                        foreach ($sources as $source) { if ((int) $source['id'] === (int) $scope['sources_id']) { $sourceName = (string) $source['name']; break; } }
+                        $flags = array_filter([
+                            (int) $scope['see_pending'] ? 'Pendentes' : '',
+                            (int) $scope['see_done'] ? 'Concluídas' : '',
+                            (int) $scope['can_sign'] ? 'Assina' : '',
+                        ]);
+                        $lines[] = assignature_h($sourceName) . ' — ' . assignature_h(implode(', ', $flags));
+                    }
+                    ?><div class="as-scope-row"><div><strong><?= assignature_h($userName) ?></strong><small><?= implode('<br>', $lines) ?></small></div><a class="as-button as-button-light as-button-small" href="?user=<?= (int) $uid ?>#as-scope-form">Editar</a></div><?php endforeach; ?>
                 </div>
             <?php endif; ?>
         </section>

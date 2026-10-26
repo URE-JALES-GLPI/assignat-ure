@@ -69,4 +69,29 @@ class PluginAssignatureScope
             $DB->insert(self::TABLE, $values + ['users_id' => $userId, 'sources_id' => $sourceId]);
         }
     }
+
+    /**
+     * Define de uma vez todas as fontes de um usuário. $rows: [source_id => ['pending'=>bool,'done'=>bool,'sign'=>bool]].
+     * Fontes fora de $rows (ou sem nenhum estado marcado) perdem o acesso.
+     */
+    public static function replaceForUser(int $userId, array $rows): int
+    {
+        global $DB;
+        $user = new User();
+        if ($userId <= 0 || !$user->getFromDB($userId)) {
+            throw new RuntimeException('Selecione um usuário.');
+        }
+        $kept = 0;
+        foreach (PluginAssignatureSource::all() as $source) {
+            $sourceId = (int) $source['id'];
+            $row = $rows[$sourceId] ?? null;
+            if (is_array($row) && (!empty($row['pending']) || !empty($row['done']))) {
+                self::save($userId, $sourceId, !empty($row['pending']), !empty($row['done']), !empty($row['sign']));
+                $kept++;
+            } else {
+                $DB->delete(self::TABLE, ['users_id' => $userId, 'sources_id' => $sourceId]);
+            }
+        }
+        return $kept;
+    }
 }
