@@ -77,7 +77,8 @@ foreach ($DB->request([
 ]) as $row) {
     $pendingCallbacks[] = $row;
 }
-Html::header('Administração — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+Html::header('Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page">
     <header class="as-page-head">

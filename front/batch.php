@@ -88,7 +88,8 @@ $technicians = $batch === null ? PluginAssignatureTechnician::availableForSource
 $technicianName = $batch !== null ? PluginAssignatureBatch::technicianName($batch) : '';
 $statusText = $batch === null ? 'Nova assinatura' : ((string) $batch['status'] === 'done' ? 'Assinado' : 'Aguardando arquivo');
 header('Cache-Control: no-store');
-Html::header('Lote de assinaturas — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+Html::header('Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page as-batch-page">
     <header class="as-page-head as-print-hide"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">ASSINATURA EM LOTE</p><h1><?= $batch === null ? 'Como deseja assinar?' : 'Lote #' . $batchId ?></h1><p><?= count($requests) ?> pedido(s) · <?= assignature_h($statusText) ?></p></div></div><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>

@@ -49,7 +49,8 @@ if ((int) $request['signed_by_users_id'] > 0) {
     }
 }
 header('Cache-Control: no-store');
-Html::header('Assinatura ' . $request['code'] . ' — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+Html::header('Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page as-detail-page">
     <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow"><?= assignature_h($source['name']) ?> · <?= assignature_h($request['code']) ?></p><h1><?= assignature_h($request['title']) ?></h1><p><?= assignature_h($request['summary']) ?></p></div></div><a class="as-button as-button-light as-print-hide" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>

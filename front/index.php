@@ -25,7 +25,8 @@ foreach ($requests as $request) {
         break;
     }
 }
-Html::header('Assinaturas — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+Html::header('Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
+echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page" data-request-watch data-fingerprint="<?= assignature_h($fingerprint) ?>" data-source="<?= $sourceId ?>">
     <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Assinaturas</h1><p>Pedidos de assinatura dos plugins conectados.</p></div></div>
