@@ -10,7 +10,12 @@ if (!in_array($status, ['', 'pending', 'done'], true)) {
 }
 $sourceId = max(0, (int) ($_GET['source'] ?? 0));
 PluginAssignatureRequest::syncDueSources($userId);
-$requests = PluginAssignatureRequest::visible($userId, $status, $sourceId);
+$allRequests = PluginAssignatureRequest::visible($userId, '', $sourceId);
+$fingerprint = PluginAssignatureRequest::fingerprint($allRequests);
+$requests = $status === '' ? $allRequests : array_values(array_filter(
+    $allRequests,
+    static fn (array $request): bool => (string) $request['status'] === $status
+));
 $sources = PluginAssignatureSource::all(true);
 $hasSelectable = false;
 foreach ($requests as $request) {
@@ -22,7 +27,7 @@ foreach ($requests as $request) {
 }
 Html::header('Assinaturas — Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
 ?>
-<main class="as-page">
+<main class="as-page" data-request-watch data-fingerprint="<?= assignature_h($fingerprint) ?>" data-source="<?= $sourceId ?>">
     <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">[URE] Assignat-ure</p><h1>Assinaturas</h1><p>Pedidos de assinatura dos plugins conectados.</p></div></div>
         <?php if (PluginAssignatureApp::canAdmin()): ?><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/admin.php')) ?>">Administração</a><?php endif; ?>
     </header>

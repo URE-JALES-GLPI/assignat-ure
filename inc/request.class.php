@@ -63,6 +63,25 @@ class PluginAssignatureRequest
         return $result;
     }
 
+    /** Assinatura estável do conteúdo visível, sem datas alteradas por sincronizações idênticas. */
+    public static function fingerprint(array $requests): string
+    {
+        $items = [];
+        foreach ($requests as $request) {
+            $items[] = [
+                (int) $request['id'],
+                (string) $request['status'],
+                (int) ($request['batches_id'] ?? 0),
+                (string) $request['code'],
+                (string) $request['title'],
+                (string) $request['summary'],
+                (string) $request['source_name'],
+                (string) ($request['payload_json'] ?? ''),
+            ];
+        }
+        return hash('sha256', json_encode($items, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR));
+    }
+
     /** Atualiza pedidos ao abrir o painel, mesmo sem o cron do GLPI configurado. */
     public static function syncDueSources(int $userId): void
     {

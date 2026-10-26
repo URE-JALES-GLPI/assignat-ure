@@ -10,6 +10,39 @@
         if (start !== null && end !== null) { field.setSelectionRange(start, end); }
     });
 
+    var requestWatch = document.querySelector('[data-request-watch]');
+    if (requestWatch) {
+        var fingerprint = requestWatch.getAttribute('data-fingerprint');
+        var checkingChanges = false;
+        async function checkRequestChanges() {
+            var batchSelection = document.querySelector('[data-batch-select]');
+            if (checkingChanges || document.hidden || (batchSelection && !batchSelection.hidden)) { return; }
+            checkingChanges = true;
+            try {
+                var url = new URL('changes.php', window.location.href);
+                url.searchParams.set('source', requestWatch.getAttribute('data-source') || '0');
+                var response = await fetch(url.toString(), {
+                    credentials: 'same-origin',
+                    cache: 'no-store',
+                    headers: { 'Accept': 'application/json' }
+                });
+                if (!response.ok || !(response.headers.get('content-type') || '').includes('application/json')) { return; }
+                var data = await response.json();
+                if (data.fingerprint && data.fingerprint !== fingerprint) {
+                    window.location.reload();
+                }
+            } catch (error) {
+                // Uma falha temporária não interrompe o uso da lista; a próxima consulta tenta novamente.
+            } finally {
+                checkingChanges = false;
+            }
+        }
+        window.setInterval(checkRequestChanges, 20000);
+        document.addEventListener('visibilitychange', function () {
+            if (!document.hidden) { checkRequestChanges(); }
+        });
+    }
+
     var selection = document.querySelector('[data-batch-select]');
     if (selection) {
         var checks = Array.prototype.slice.call(document.querySelectorAll('[data-batch-check]'));
