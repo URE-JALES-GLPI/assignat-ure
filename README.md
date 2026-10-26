@@ -52,4 +52,14 @@ O adaptador genérico permite cadastrar Protocolo e outros plugins quando eles o
 
 O retorno deve ser idempotente: enviar duas vezes a mesma assinatura não pode duplicar a conclusão na origem. O plugin de origem deve validar o token antes de consultar pedidos ou aceitar o retorno. O comprovante fica no Assignat-ure; o hash permite à origem vincular o registro.
 
-O Protocolo ainda precisa implementar esse contrato na própria base de código. Cadastrar uma URL do Protocolo antes disso não faz a sincronização funcionar.
+O Protocolo (versão 2.6.0 ou superior) implementa esse contrato.
+
+## Vincular o Protocolo
+
+1. No Protocolo, abra **Configuração** e vá até a seção **assignat-ure**. Copie o token e a URL do endpoint (`https://SEU-GLPI/plugins/protocolo/front/assignature.php`).
+2. No Assignat-ure, adicione uma fonte com identificador `protocolo`, integração **Genérica (Protocolo/futuros)**, a URL do endpoint e o token copiado.
+3. Cada pasta com status **Aguardando retirada** aparece como um pedido pendente. Os itens da pasta aparecem linha a linha no termo.
+4. Opcional: no Protocolo, defina a URL do Assignat-ure como `https://SEU-GLPI/plugins/assignature/front/request.php`. O Dashboard do Protocolo passa a mostrar o botão **Assignat-ure** em cada pasta, que abre o pedido com `?source=protocolo&ref=ID`.
+5. Conceda aos usuários a regra para a fonte Protocolo e marque o Protocolo nos cadastros de técnicos que poderão assinar por ele.
+
+Após a assinatura, o Protocolo marca a pasta como **Retirada**, registra quem assinou, a data e o SHA-256 da assinatura, e envia o mesmo e-mail de retirada da escola. O retorno é idempotente.

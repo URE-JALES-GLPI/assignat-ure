@@ -5,20 +5,22 @@ require_once GLPI_ROOT . '/plugins/assignature/inc/batch.class.php';
 Session::checkRight(PluginAssignatureProfile::RIGHT_VIEW, READ);
 $userId = (int) Session::getLoginUserID();
 $id = (int) ($_GET['id'] ?? $_POST['id'] ?? 0);
-if ($id <= 0 && isset($_GET['card'])) {
-    $tralla = PluginAssignatureSource::bySlug('tralla');
-    $cardId = (int) $_GET['card'];
-    if ($tralla !== null && $cardId > 0
-        && (PluginAssignatureScope::canSee($userId, (int) $tralla['id'], 'pending')
-            || PluginAssignatureScope::canSee($userId, (int) $tralla['id'], 'done'))) {
-        $found = PluginAssignatureRequest::byExternal((int) $tralla['id'], (string) $cardId);
+// Links vindos dos plugins de origem: ?card=ID (Tralla) ou ?source=slug&ref=ID (Protocolo e outros).
+$linkSlug = isset($_GET['card']) ? 'tralla' : strtolower(trim((string) ($_GET['source'] ?? '')));
+$linkRef = isset($_GET['card']) ? (string) (int) $_GET['card'] : trim((string) ($_GET['ref'] ?? ''));
+if ($id <= 0 && $linkSlug !== '' && $linkRef !== '' && $linkRef !== '0' && mb_strlen($linkRef) <= 100) {
+    $linkSource = PluginAssignatureSource::bySlug($linkSlug);
+    if ($linkSource !== null
+        && (PluginAssignatureScope::canSee($userId, (int) $linkSource['id'], 'pending')
+            || PluginAssignatureScope::canSee($userId, (int) $linkSource['id'], 'done'))) {
+        $found = PluginAssignatureRequest::byExternal((int) $linkSource['id'], $linkRef);
         if ($found === null) {
             try {
-                PluginAssignatureRequest::syncSource($tralla);
+                PluginAssignatureRequest::syncSource($linkSource);
             } catch (Throwable $e) {
                 assignature_flash($e->getMessage(), false);
             }
-            $found = PluginAssignatureRequest::byExternal((int) $tralla['id'], (string) $cardId);
+            $found = PluginAssignatureRequest::byExternal((int) $linkSource['id'], $linkRef);
         }
         $id = (int) ($found['id'] ?? 0);
     }
