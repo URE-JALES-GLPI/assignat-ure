@@ -66,7 +66,7 @@ class PluginAssignatureTechnician
         if ($id > 0 && $existing === null) {
             throw new RuntimeException('Técnico não encontrado.');
         }
-        $name = trim((string) ($data['full_name'] ?? ''));
+        $name = mb_strtoupper(trim((string) ($data['full_name'] ?? '')), 'UTF-8');
         if (mb_strlen($name) < 3 || mb_strlen($name) > 255 || count(preg_split('/\s+/u', $name)) < 2) {
             throw new RuntimeException('Informe o nome completo do técnico ou funcionário.');
         }

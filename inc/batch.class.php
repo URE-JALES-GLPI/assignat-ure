@@ -152,8 +152,9 @@ class PluginAssignatureBatch
         if ($profile === null || (int) $profile['is_active'] !== 1) {
             throw new RuntimeException('Selecione uma assinatura de técnico cadastrada e ativa.');
         }
-        $signerName = trim($signerName);
-        if (mb_strlen($signerName) > 255 || ($method === 'digital' && $signerName === '')) {
+        $signerName = mb_strtoupper(trim($signerName), 'UTF-8');
+        if (mb_strlen($signerName) > 255 || ($method === 'digital'
+            && count(preg_split('/\s+/u', $signerName)) < 2)) {
             throw new RuntimeException('Informe o nome completo de quem retira.');
         }
         $formatted = $document !== '' || $method === 'digital'
@@ -361,8 +362,8 @@ class PluginAssignatureBatch
                 throw new RuntimeException('O pedido ' . $request['code'] . ' não está mais pendente na origem.');
             }
         }
-        $signerName = trim($signerName);
-        if ($signerName === '' || mb_strlen($signerName) > 255) {
+        $signerName = mb_strtoupper(trim($signerName), 'UTF-8');
+        if (mb_strlen($signerName) > 255 || count(preg_split('/\s+/u', $signerName)) < 2) {
             throw new RuntimeException('Informe o nome completo de quem assinou o termo.');
         }
         $formatted = self::document($documentType, $document);
@@ -505,9 +506,22 @@ class PluginAssignatureBatch
         $pdf->SetMargins(17, 17, 17);
         $pdf->SetAutoPageBreak(true, 18);
         $pdf->AddPage();
-        $logo = dirname(__DIR__) . '/logo.png';
-        if (is_file($logo)) {
-            $pdf->Image($logo, 17, 17, 18, 18, 'PNG');
+        // A logo é decorativa: sua ausência no servidor nunca deve impedir a
+        // geração do termo nem o envio à impressora.
+        foreach ([dirname(__DIR__) . '/public/logo.png', dirname(__DIR__) . '/logo.png'] as $logo) {
+            if (!is_readable($logo)) {
+                continue;
+            }
+            $image = @file_get_contents($logo);
+            if ($image === false || @getimagesizefromstring($image) === false) {
+                continue;
+            }
+            try {
+                $pdf->Image('@' . $image, 17, 17, 18, 18, 'PNG');
+                break;
+            } catch (Throwable $e) {
+                // O texto do cabeçalho continua identificando o termo.
+            }
         }
         $pdf->SetTextColor(83, 96, 116);
         $pdf->SetFont('dejavusans', 'B', 8);

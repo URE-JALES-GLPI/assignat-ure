@@ -45,7 +45,7 @@ class PluginAssignatureSource
             throw new RuntimeException('Fonte não encontrada.');
         }
         $slug = strtolower(trim((string) ($data['slug'] ?? '')));
-        $name = trim((string) ($data['name'] ?? ''));
+        $name = mb_strtoupper(trim((string) ($data['name'] ?? '')), 'UTF-8');
         $adapter = (string) ($data['adapter'] ?? 'generic');
         $url = trim((string) ($data['endpoint_url'] ?? ''));
         if (!preg_match('/^[a-z][a-z0-9_]{1,63}$/', $slug) || $name === '' || mb_strlen($name) > 150) {

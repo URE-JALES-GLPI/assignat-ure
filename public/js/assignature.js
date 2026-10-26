@@ -1,6 +1,15 @@
 (function () {
     'use strict';
 
+    document.addEventListener('input', function (event) {
+        var field = event.target;
+        if (!field.matches || !field.matches('[data-uppercase]')) { return; }
+        var start = field.selectionStart;
+        var end = field.selectionEnd;
+        field.value = field.value.toLocaleUpperCase('pt-BR');
+        if (start !== null && end !== null) { field.setSelectionRange(start, end); }
+    });
+
     var selection = document.querySelector('[data-batch-select]');
     if (selection) {
         var checks = Array.prototype.slice.call(document.querySelectorAll('[data-batch-check]'));
@@ -124,6 +133,11 @@
     if (upload) {
         var validUploadDoc = bindDocument(upload);
         upload.addEventListener('submit', function (event) {
+            if (upload.querySelector('[name="signer_name"]').value.trim().split(/\s+/).length < 2) {
+                event.preventDefault();
+                alert('Informe nome e sobrenome de quem assinou.');
+                return;
+            }
             if (!validUploadDoc()) {
                 event.preventDefault();
                 alert('Confira o número do documento antes de enviar.');
@@ -320,6 +334,10 @@
             field = steps[currentStep].querySelector('input[name="document_type"]:checked');
             if (!field) { showError('Escolha CPF ou RG.'); return; }
         } else if (field && !field.reportValidity()) { return; }
+        if (currentStep === 1 && signer.value.trim().split(/\s+/).length < 2) {
+            showError('Informe nome e sobrenome de quem retira.');
+            return;
+        }
         if (currentStep === 3 && !validDocument()) {
             showError('Confira o documento. O CPF precisa ser válido.');
             return;
@@ -329,7 +347,7 @@
     back.addEventListener('click', function () { showStep(Math.max(0, currentStep - 1)); });
     form.addEventListener('submit', function (event) {
         if (methodInput.value === 'paper') { return; }
-        if (!signer.value.trim() || !validDocument()) {
+        if (signer.value.trim().split(/\s+/).length < 2 || !validDocument()) {
             event.preventDefault();
             showError('Confira o nome completo e o documento.');
             return;
