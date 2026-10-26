@@ -29,9 +29,8 @@ class PluginAssignatureScope
         if (!PluginAssignatureApp::canView()) {
             return false;
         }
-        if (PluginAssignatureApp::canAdmin()) {
-            return true;
-        }
+        // A separação por fonte vale para todos, inclusive administradores: administrar o plugin
+        // (cadastrar fontes e acessos) não dá, por si só, acesso aos pedidos de cada fonte.
         $scope = self::forUser($userId)[$sourceId] ?? null;
         return $scope !== null && (int) ($scope[$status === 'done' ? 'see_done' : 'see_pending'] ?? 0) === 1;
     }
@@ -40,9 +39,6 @@ class PluginAssignatureScope
     {
         if (!self::canSee($userId, $sourceId, 'pending')) {
             return false;
-        }
-        if (PluginAssignatureApp::canAdmin()) {
-            return true;
         }
         $scope = self::forUser($userId)[$sourceId] ?? null;
         return $scope !== null && (int) ($scope['can_sign'] ?? 0) === 1;
