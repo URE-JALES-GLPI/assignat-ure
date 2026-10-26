@@ -134,14 +134,26 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <div class="as-section-title"><h2>Acesso por usuário</h2></div>
             <p class="as-hint">O perfil do GLPI precisa ter a permissão “Visualizar o plugin”. Aqui você escolhe as fontes que o usuário pode ver (uma ou várias), os estados visíveis e quem pode coletar a assinatura.</p>
             <?php $userScopes = $editUserId > 0 ? PluginAssignatureScope::forUser($editUserId) : []; ?>
+            <style>
+                .as-scope-hint{margin:2px 0 0}
+                .as-scope-pick{background:#fafbff;border:1px solid var(--as-line,#e4e9f1);border-radius:12px;display:grid;gap:11px;padding:14px 16px;transition:background .15s,border-color .15s}
+                .as-scope-pick:not(.is-off){background:#f3f8ff;border-color:#bcd3f6}
+                .as-scope-pick .as-scope-pick-name{align-items:center;cursor:pointer;display:flex;gap:10px;margin:0}
+                .as-scope-pick .as-scope-pick-name span{color:var(--as-ink,#17223b);font-size:14px;font-weight:800;letter-spacing:.02em}
+                .as-scope-pick .as-scope-pick-flags{display:flex;flex-wrap:wrap;gap:10px 22px;padding-left:28px}
+                .as-scope-pick .as-scope-pick-flags label{align-items:center;color:#354968;cursor:pointer;display:inline-flex;font-size:13px;font-weight:600;gap:8px;margin:0}
+                .as-scope-pick input[type=checkbox]{flex:none;height:17px;margin:0;width:17px}
+                .as-scope-pick.is-off .as-scope-pick-flags{opacity:.55}
+                #as-scope-form>button.as-button{margin-top:4px}
+            </style>
             <form method="post" class="as-form" id="as-scope-form">
                 <?= assignature_csrf_field() ?><input type="hidden" name="action" value="scope_save_multi">
                 <label>Usuário<?php User::dropdown(['name' => 'users_id', 'right' => 'all', 'display_emptychoice' => true, 'value' => $editUserId]); ?></label>
-                <p class="as-hint" style="margin:6px 0 0;"><?= $editUserId > 0 ? 'Marque todas as fontes que este usuário pode ver. Desmarcar uma fonte remove o acesso dele a ela.' : 'Escolha o usuário para marcar as fontes que ele pode ver.' ?></p>
+                <p class="as-hint as-scope-hint"><?= $editUserId > 0 ? 'Marque todas as fontes que este usuário pode ver. Desmarcar uma fonte remove o acesso dele a ela.' : 'Escolha o usuário para marcar as fontes que ele pode ver.' ?></p>
                 <?php foreach ($sources as $source): $sid = (int) $source['id']; $sc = $userScopes[$sid] ?? null; ?>
-                    <div class="as-scope-pick" style="border:1px solid #e5e7eb;border-radius:12px;padding:10px 12px;margin-top:8px;">
-                        <label class="as-checkbox"><input type="checkbox" name="sources[<?= $sid ?>]" value="1" data-source-toggle <?= $sc !== null ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> <strong><?= assignature_h($source['name']) ?></strong></label>
-                        <div class="as-checks">
+                    <div class="as-scope-pick <?= $sc !== null ? '' : 'is-off' ?>">
+                        <label class="as-scope-pick-name"><input type="checkbox" name="sources[<?= $sid ?>]" value="1" data-source-toggle <?= $sc !== null ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> <span><?= assignature_h($source['name']) ?></span></label>
+                        <div class="as-scope-pick-flags">
                             <label><input type="checkbox" name="see_pending[<?= $sid ?>]" value="1" data-flag="pending" <?= !empty($sc['see_pending']) ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> Ver pendentes</label>
                             <label><input type="checkbox" name="see_done[<?= $sid ?>]" value="1" data-flag="done" <?= !empty($sc['see_done']) ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> Ver concluídas</label>
                             <label><input type="checkbox" name="can_sign[<?= $sid ?>]" value="1" data-flag="sign" <?= !empty($sc['can_sign']) ? 'checked' : '' ?> <?= $editUserId > 0 ? '' : 'disabled' ?>> Pode assinar</label>
@@ -167,17 +179,20 @@ echo "<script>document.title = 'Assignat-ure';</script>";
                     var tg = box.querySelector('[data-source-toggle]');
                     var fl = function (n) { return box.querySelector('[data-flag="' + n + '"]'); };
                     if (!tg) { return; }
+                    var refresh = function () { box.classList.toggle('is-off', !tg.checked); };
                     tg.addEventListener('change', function () {
                         if (tg.checked && !fl('pending').checked && !fl('done').checked && !fl('sign').checked) {
                             fl('pending').checked = true; fl('done').checked = true;
                         }
                         if (!tg.checked) { ['pending', 'done', 'sign'].forEach(function (n) { fl(n).checked = false; }); }
+                        refresh();
                     });
                     box.querySelectorAll('[data-flag]').forEach(function (c) {
                         c.addEventListener('change', function () {
                             if (c.checked) { tg.checked = true; }
                             if (c.getAttribute('data-flag') === 'sign' && c.checked) { fl('pending').checked = true; }
                             if (!fl('pending').checked && !fl('done').checked) { tg.checked = false; fl('sign').checked = false; }
+                            refresh();
                         });
                     });
                 });
