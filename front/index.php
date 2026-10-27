@@ -41,7 +41,29 @@ echo "<script>document.title = 'Assignat-ure';</script>";
         <?php if ($hasSelectable): ?><div class="as-batch-entry" data-batch-entry><button type="button" class="as-button as-button-light" data-batch-start><i class="ti ti-checkbox"></i> Assinar em lote</button></div><?php endif; ?>
         <form id="as-batch-select" method="get" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>" class="as-batch-toolbar" data-batch-select hidden><div><strong>Selecione os cards</strong><span>A mesma pessoa vai assinar todos os escolhidos.</span></div><div class="as-inline-actions"><button type="button" class="as-text-button" data-select-all>Selecionar todos</button><button type="button" class="as-text-button" data-batch-cancel>Cancelar</button><button type="submit" class="as-button" data-batch-button disabled>Continuar com selecionados <span data-selected-count>0</span></button></div></form>
         <div class="as-request-grid">
-        <?php foreach ($requests as $request): $selectable = (string) $request['status'] === 'pending' && (int) ($request['batches_id'] ?? 0) === 0 && PluginAssignatureScope::canSign($userId, (int) $request['sources_id']); ?><article class="as-request"><div class="as-request-top"><span class="as-source-chip"><?= assignature_h($request['source_name']) ?></span><span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : ((int) ($request['batches_id'] ?? 0) > 0 ? 'Aguardando arquivo' : 'Pendente') ?></span></div><a class="as-request-link" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>"><strong><?= assignature_h($request['title']) ?></strong><p><?= assignature_h($request['summary']) ?></p></a><div class="as-request-bottom"><span>#<?= assignature_h($request['code']) ?></span><?php if ($selectable): ?><a href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>" data-single-action>Assinar <i class="ti ti-arrow-right"></i></a><label class="as-select-request" data-batch-option hidden><input type="checkbox" name="ids[]" value="<?= (int) $request['id'] ?>" form="as-batch-select" data-batch-check><span data-check-label>Selecionar</span></label><?php else: ?><a href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>"><?= $request['status'] === 'done' ? 'Ver comprovante' : 'Visualizar' ?> <i class="ti ti-arrow-right"></i></a><?php endif; ?></div></article><?php endforeach; ?>
+        <?php foreach ($requests as $request):
+            $selectable = (string) $request['status'] === 'pending'
+                && (int) ($request['batches_id'] ?? 0) === 0
+                && PluginAssignatureScope::canSign($userId, (int) $request['sources_id']);
+            $isTralla = (string) ($request['source_slug'] ?? '') === 'tralla';
+        ?>
+            <article class="as-request">
+                <div class="as-request-top">
+                    <span class="as-source-chip"><?= assignature_h($request['source_name']) ?></span>
+                    <span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : ((int) ($request['batches_id'] ?? 0) > 0 ? 'Aguardando arquivo' : 'Pendente') ?></span>
+                </div>
+                <div class="as-request-reference"><i class="ti ti-id"></i><span><?= $isTralla ? 'Card do quadro' : 'Referência de origem' ?></span><strong>#<?= assignature_h($request['code']) ?></strong></div>
+                <a class="as-request-link" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>"><strong><?= assignature_h($request['title']) ?></strong><p><?= assignature_h($request['summary']) ?></p></a>
+                <div class="as-request-bottom"><span>Assinatura #<?= (int) $request['id'] ?></span>
+                    <?php if ($selectable): ?>
+                        <a href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>" data-single-action>Assinar <i class="ti ti-arrow-right"></i></a>
+                        <label class="as-select-request" data-batch-option hidden><input type="checkbox" name="ids[]" value="<?= (int) $request['id'] ?>" form="as-batch-select" data-batch-check><span data-check-label>Selecionar</span></label>
+                    <?php else: ?>
+                        <a href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>"><?= $request['status'] === 'done' ? 'Ver comprovante' : 'Visualizar' ?> <i class="ti ti-arrow-right"></i></a>
+                    <?php endif; ?>
+                </div>
+            </article>
+        <?php endforeach; ?>
         </div>
     <?php endif; ?>
 </main>
