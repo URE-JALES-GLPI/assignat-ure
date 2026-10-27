@@ -43,6 +43,25 @@ $batch = (int) ($request['batches_id'] ?? 0) > 0
 $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
 $payload = is_array($payload) ? $payload : [];
 $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
+$entityId = (int) ($payload['entities_id'] ?? $payload['entity_id'] ?? ($payload['entity']['id'] ?? 0));
+$entityName = trim((string) ($payload['entity']['name'] ?? $request['title']));
+$sameEntity = [];
+if ((string) $request['status'] === 'pending') {
+    foreach (PluginAssignatureRequest::visible($userId, 'pending', (int) $request['sources_id']) as $candidate) {
+        if ((int) $candidate['is_active'] !== 1 || (int) ($candidate['batches_id'] ?? 0) !== 0
+            || !PluginAssignatureScope::canSign($userId, (int) $candidate['sources_id'])) {
+            continue;
+        }
+        $candidatePayload = json_decode((string) ($candidate['payload_json'] ?? ''), true);
+        $candidatePayload = is_array($candidatePayload) ? $candidatePayload : [];
+        $candidateEntityId = (int) ($candidatePayload['entities_id'] ?? $candidatePayload['entity_id'] ?? ($candidatePayload['entity']['id'] ?? 0));
+        $candidateName = trim((string) ($candidatePayload['entity']['name'] ?? $candidate['title']));
+        if ($entityId > 0 && $candidateEntityId > 0 ? $entityId === $candidateEntityId
+            : mb_strtolower($entityName, 'UTF-8') === mb_strtolower($candidateName, 'UTF-8')) {
+            $sameEntity[] = $candidate;
+        }
+    }
+}
 $signedBy = '';
 if ((int) $request['signed_by_users_id'] > 0) {
     $user = new User();
@@ -56,6 +75,23 @@ echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page as-detail-page">
     <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow"><?= assignature_h($source['name']) ?> · <?= assignature_h($request['code']) ?></p><h1><?= assignature_h($request['title']) ?></h1><p><?= assignature_h($request['summary']) ?></p></div></div><a class="as-button as-button-light as-print-hide" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>
+    <div class="as-request-layout<?= count($sameEntity) > 1 ? ' has-sidebar' : '' ?>">
+    <?php if (count($sameEntity) > 1): ?>
+        <aside class="as-panel as-entity-sidebar as-print-hide" aria-label="Assinaturas pendentes da mesma entidade">
+            <h2>Mesma entidade</h2><p class="as-hint"><?= count($sameEntity) ?> pedidos pendentes de <?= assignature_h($entityName) ?></p>
+            <nav class="as-entity-list"><?php foreach ($sameEntity as $candidate): ?>
+                <a class="as-entity-link<?= (int) $candidate['id'] === $id ? ' is-current' : '' ?>" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $candidate['id'])) ?>" <?= (int) $candidate['id'] === $id ? 'aria-current="page"' : '' ?>>
+                    <strong><?= assignature_h($candidate['code']) ?></strong><span><?= assignature_h($candidate['title']) ?></span>
+                </a>
+            <?php endforeach; ?></nav>
+            <?php if (count($sameEntity) <= 100): ?>
+                <form method="get" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>">
+                    <?php foreach ($sameEntity as $candidate): ?><input type="hidden" name="ids[]" value="<?= (int) $candidate['id'] ?>"><?php endforeach; ?>
+                    <button class="as-button as-button-wide" type="submit"><i class="ti ti-checks"></i> Assinar todos juntos</button>
+                </form>
+            <?php else: ?><p class="as-hint">Para assinar em lote, selecione até 100 pedidos na lista de pendentes.</p><?php endif; ?>
+        </aside>
+    <?php endif; ?>
     <div class="as-detail-grid">
         <section class="as-panel"><div class="as-section-title"><h2>Pedido</h2><span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : 'Pendente' ?></span></div>
             <?php if ((string) ($payload['description'] ?? '') !== ''): ?><p><?= nl2br(assignature_h($payload['description'])) ?></p><?php endif; ?>
@@ -77,10 +113,11 @@ echo "<script>document.title = 'Assignat-ure';</script>";
         <?php elseif ($canSign): ?>
             <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados do pedido. Você poderá assinar agora ou preparar o termo para assinatura em papel.</p><a class="as-button as-button-wide" href="<?= assignature_h(assignature_url('/front/batch.php?ids%5B%5D=' . (int) $request['id'])) ?>">Escolher como assinar <i class="ti ti-arrow-right"></i></a></section>
         <?php elseif ($batch !== null && (string) $batch['status'] === 'awaiting_upload'): ?>
-            <section class="as-panel"><h2>Aguardando arquivo assinado</h2><p>Este pedido faz parte do termo #<?= (int) $batch['id'] ?>. Após enviar o arquivo, a retirada será concluída automaticamente.</p><a class="as-button" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Abrir termo</a></section>
+            <section class="as-panel"><h2>Aguardando arquivo assinado</h2><p>Este pedido faz parte do termo #<?= (int) $batch['id'] ?>. Após enviar o arquivo, a retirada será concluída automaticamente.</p><div class="as-inline-actions"><a class="as-button" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Abrir termo</a><?php if ((int) $batch['created_by_users_id'] === $userId || PluginAssignatureApp::canAdmin()): ?><form method="post" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>" onsubmit="return confirm('Cancelar o termo em papel e mudar todos os pedidos deste lote para Assinar agora?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="convert_to_digital"><input type="hidden" name="batch_id" value="<?= (int) $batch['id'] ?>"><button class="as-button as-button-light" type="submit">Mudar para assinar agora</button></form><?php endif; ?></div></section>
         <?php else: ?>
             <section class="as-panel"><h2>Aguardando assinatura</h2><p>Você pode visualizar este pedido, mas não tem permissão para coletar a assinatura.</p></section>
         <?php endif; ?>
+    </div>
     </div>
 </main>
 <?php Html::footer(); ?>

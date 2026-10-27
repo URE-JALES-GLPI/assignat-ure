@@ -378,6 +378,9 @@
     document.querySelectorAll('[data-choose-method]').forEach(function (button) {
         button.addEventListener('click', function () { choose(button.getAttribute('data-choose-method')); });
     });
+    if (new URLSearchParams(window.location.search).get('method') === 'digital') {
+        choose('digital');
+    }
     document.querySelector('[data-back-choices]').addEventListener('click', function () {
         flow.hidden = true;
         choices.hidden = false;

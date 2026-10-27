@@ -32,6 +32,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             PluginAssignatureBatch::cancel($batchId, $userId);
             assignature_flash('Termo cancelado. Os pedidos voltaram a ficar disponíveis.');
             $redirectUrl = assignature_url('/front/index.php?status=pending');
+        } elseif ($action === 'convert_to_digital') {
+            $batch = PluginAssignatureBatch::get($batchId);
+            if ($batch === null || (string) $batch['method'] !== 'paper'
+                || (string) $batch['status'] !== 'awaiting_upload') {
+                throw new RuntimeException('Este termo não está aguardando assinatura no papel.');
+            }
+            $ids = array_map('intval', array_column(PluginAssignatureBatch::requests($batchId), 'id'));
+            if ($ids === []) {
+                throw new RuntimeException('Nenhum pedido disponível neste termo.');
+            }
+            PluginAssignatureBatch::cancel($batchId, $userId);
+            assignature_flash('O termo impresso foi cancelado. Continue com a assinatura na tela.');
+            $redirectUrl = assignature_url('/front/batch.php?' . http_build_query([
+                'ids' => $ids, 'method' => 'digital',
+            ]));
         } elseif ($action === 'print') {
             $job = PluginAssignatureBatch::printTerm($batchId, $userId);
             assignature_flash('Termo enviado para ' . PluginAssignatureBatch::printerQueue() . '. ' . $job);
@@ -147,6 +162,16 @@ echo "<script>document.title = 'Assignat-ure';</script>";
              <?php if (((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload') || ((string) $batch['method'] === 'digital' && (string) $batch['status'] === 'done')): ?><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="print"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button type="submit" class="as-button"><i class="ti ti-printer"></i> <?= empty($batch['printed_at']) ? 'Enviar' : 'Reimprimir' ?> para <?= assignature_h(PluginAssignatureBatch::printerQueue()) ?> (<?= (string) $batch['method'] === 'digital' ? '2 cópias' : '1 cópia' ?>)</button></form><?php endif; ?>
             <?php if ((string) $batch['status'] === 'done' && (string) $batch['method'] === 'paper'): ?><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/file.php?id=' . $batchId)) ?>"><i class="ti ti-download"></i> Ver arquivo assinado</a><?php endif; ?>
         </div>
+        <?php if ((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload'
+            && ((int) $batch['created_by_users_id'] === $userId || PluginAssignatureApp::canAdmin())): ?>
+            <section class="as-panel as-switch-signing as-print-hide">
+                <div><h2>Prefere assinar na tela?</h2><p class="as-hint">O termo impresso será cancelado e os <?= count($requests) ?> pedido(s) seguirão para uma nova assinatura digital.</p></div>
+                <form method="post" onsubmit="return confirm('Cancelar o termo em papel e mudar todos os pedidos deste lote para Assinar agora?')">
+                    <?= assignature_csrf_field() ?><input type="hidden" name="action" value="convert_to_digital"><input type="hidden" name="batch_id" value="<?= $batchId ?>">
+                    <button class="as-button as-button-light" type="submit"><i class="ti ti-pencil"></i> Mudar para assinar agora</button>
+                </form>
+            </section>
+        <?php endif; ?>
          <?php if ((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload' && !empty($batch['printed_at'])): ?>
             <section class="as-panel as-upload-panel as-print-hide"><h2>Depois da assinatura no papel</h2><p class="as-hint">Digitalize ou fotografe o termo assinado e envie aqui. Apenas o arquivo é obrigatório; os dados da pessoa são opcionais. Os pedidos serão concluídos após o arquivo ser salvo.</p><form method="post" enctype="multipart/form-data" class="as-form" data-paper-upload><?= assignature_csrf_field() ?><input type="hidden" name="action" value="upload"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><div class="as-form-pair"><label>Nome de quem assinou (opcional)<input name="signer_name" data-uppercase maxlength="255" value="<?= assignature_h($batch['signer_name']) ?>"></label><label>Tipo de documento (opcional)<select name="document_type" data-document-type><option value="">Selecione</option><option value="CPF" <?= $batch['document_type'] === 'CPF' ? 'selected' : '' ?>>CPF</option><option value="RG" <?= $batch['document_type'] === 'RG' ? 'selected' : '' ?>>RG</option></select></label></div><label>Número do documento (opcional)<input name="signer_document" data-document-input inputmode="numeric" autocomplete="off" value="<?= assignature_h(PluginAssignatureBatch::decryptedDocument($batch)) ?>"></label><label>Termo assinado (PDF, PNG ou JPG · até 10 MB)<input type="file" name="signed_file" accept="application/pdf,image/png,image/jpeg" required></label><button class="as-button" type="submit">Enviar arquivo e concluir <?= count($requests) ?> pedido(s)</button></form>
             <form method="post" class="as-cancel-form" onsubmit="return confirm('Cancelar o termo e liberar os pedidos para uma nova assinatura?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-text-button">Cancelar termo</button></form></section>
