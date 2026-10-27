@@ -26,6 +26,58 @@ if ($id <= 0 && $linkSlug !== '' && $linkRef !== '' && $linkRef !== '0' && mb_st
     }
 }
 
+// Seleção vinda do Tralla: ?cards=10,11,15 (ids externos) abre só os cards marcados.
+// Na navegação interna a seleção segue em ?sel=ids internos.
+$selectionIds = [];
+$selectionLoaded = false;
+$cardsParam = trim((string) ($_GET['cards'] ?? ''));
+if ($id <= 0 && $cardsParam !== '') {
+    $selectionLoaded = true;
+    $trallaSource = PluginAssignatureSource::bySlug('tralla');
+    if ($trallaSource !== null && PluginAssignatureScope::canSee($userId, (int) $trallaSource['id'], 'pending')) {
+        $refs = array_slice(array_values(array_unique(array_filter(array_map(
+            static fn(string $ref): string => (string) (int) trim($ref),
+            explode(',', $cardsParam)
+        ), static fn(string $ref): bool => $ref !== '0'))), 0, 100);
+        $synced = false;
+        foreach ($refs as $ref) {
+            $found = PluginAssignatureRequest::byExternal((int) $trallaSource['id'], $ref);
+            if ($found === null && !$synced) {
+                $synced = true;
+                try {
+                    PluginAssignatureRequest::syncSource($trallaSource);
+                } catch (Throwable $e) {
+                    assignature_flash($e->getMessage(), false);
+                }
+                $found = PluginAssignatureRequest::byExternal((int) $trallaSource['id'], $ref);
+            }
+            if ($found !== null && (string) $found['status'] === 'pending' && (int) $found['is_active'] === 1) {
+                $selectionIds[] = (int) $found['id'];
+            }
+        }
+    }
+    $id = $selectionIds[0] ?? 0;
+    if ($id <= 0) {
+        assignature_abort('Nenhum dos cards selecionados está pendente de assinatura no Assignat-ure.');
+    }
+} elseif ($id > 0 && trim((string) ($_GET['sel'] ?? '')) !== '') {
+    $selectionLoaded = true;
+    $selectionIds = array_slice(array_values(array_unique(array_filter(array_map(
+        'intval', explode(',', (string) $_GET['sel'])
+    )))), 0, 100);
+}
+$selectedRequests = [];
+foreach ($selectionIds as $selectedId) {
+    $selected = PluginAssignatureRequest::get($selectedId);
+    if ($selected !== null && (string) $selected['status'] === 'pending' && (int) $selected['is_active'] === 1
+        && PluginAssignatureScope::canSee($userId, (int) $selected['sources_id'], 'pending')) {
+        $selectedRequests[(int) $selected['id']] = $selected;
+    }
+}
+if ($selectionLoaded && $selectedRequests !== [] && !isset($selectedRequests[$id])) {
+    $id = (int) array_key_first($selectedRequests);
+}
+
 $request = PluginAssignatureRequest::get($id);
 if ($request === null || !PluginAssignatureScope::canSee($userId, (int) $request['sources_id'], (string) $request['status'])) {
     assignature_abort('Assinatura não encontrada ou sem acesso.');
@@ -62,7 +114,10 @@ $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
 $entityId = (int) ($payload['entities_id'] ?? $payload['entity_id'] ?? ($payload['entity']['id'] ?? 0));
 $entityName = trim((string) ($payload['entity']['name'] ?? $request['title']));
 $sameEntity = [];
-if ((string) $request['status'] === 'pending') {
+$isSelection = count($selectedRequests) > 1;
+if ($isSelection) {
+    $sameEntity = array_values($selectedRequests);
+} elseif ((string) $request['status'] === 'pending') {
     foreach (PluginAssignatureRequest::visible($userId, 'pending', (int) $request['sources_id']) as $candidate) {
         if ((int) $candidate['is_active'] !== 1 || (int) ($candidate['batches_id'] ?? 0) !== 0
             || !PluginAssignatureScope::canSign($userId, (int) $candidate['sources_id'])) {
@@ -94,16 +149,16 @@ echo "<script>document.title = 'Assignat-ure';</script>";
     <div class="as-request-layout<?= count($sameEntity) > 1 ? ' has-sidebar' : '' ?>">
     <?php if (count($sameEntity) > 1): ?>
         <aside class="as-panel as-entity-sidebar as-print-hide" aria-label="Assinaturas pendentes da mesma entidade">
-            <h2>Mesma entidade</h2><p class="as-hint"><?= count($sameEntity) ?> pedidos pendentes de <?= assignature_h($entityName) ?></p>
+            <?php if ($isSelection): ?><h2>Selecionados</h2><p class="as-hint"><?= count($sameEntity) ?> pedidos marcados no Tralla para assinar juntos</p><?php else: ?><h2>Mesma entidade</h2><p class="as-hint"><?= count($sameEntity) ?> pedidos pendentes de <?= assignature_h($entityName) ?></p><?php endif; ?>
             <nav class="as-entity-list"><?php foreach ($sameEntity as $candidate): ?>
-                <a class="as-entity-link<?= (int) $candidate['id'] === $id ? ' is-current' : '' ?>" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $candidate['id'])) ?>" <?= (int) $candidate['id'] === $id ? 'aria-current="page"' : '' ?>>
+                <a class="as-entity-link<?= (int) $candidate['id'] === $id ? ' is-current' : '' ?>" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $candidate['id'] . ($isSelection ? '&sel=' . implode(',', array_keys($selectedRequests)) : ''))) ?>" <?= (int) $candidate['id'] === $id ? 'aria-current="page"' : '' ?>>
                     <strong><?= assignature_h($candidate['code']) ?></strong><span><?= assignature_h($candidate['title']) ?></span>
                 </a>
             <?php endforeach; ?></nav>
             <?php if (count($sameEntity) <= 100): ?>
                 <form method="get" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>">
-                    <?php foreach ($sameEntity as $candidate): ?><input type="hidden" name="ids[]" value="<?= (int) $candidate['id'] ?>"><?php endforeach; ?>
-                    <button class="as-button as-button-wide" type="submit"><i class="ti ti-checks"></i> Assinar todos juntos</button>
+                    <?php $batchCount = 0; foreach ($sameEntity as $candidate): if ((int) ($candidate['batches_id'] ?? 0) !== 0 || !PluginAssignatureScope::canSign($userId, (int) $candidate['sources_id'])) { continue; } $batchCount++; ?><input type="hidden" name="ids[]" value="<?= (int) $candidate['id'] ?>"><?php endforeach; ?>
+                    <?php if ($batchCount > 0): ?><button class="as-button as-button-wide" type="submit"><i class="ti ti-checks"></i> <?= $isSelection ? 'Assinar os ' . $batchCount . ' selecionados' : 'Assinar todos juntos' ?></button><?php else: ?><p class="as-hint">Você não tem permissão para assinar estes pedidos.</p><?php endif; ?>
                 </form>
             <?php else: ?><p class="as-hint">Para assinar em lote, selecione até 100 pedidos na lista de pendentes.</p><?php endif; ?>
         </aside>
