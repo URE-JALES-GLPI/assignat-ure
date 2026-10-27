@@ -170,29 +170,63 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <?php if (isset($payload['board']['name'])): ?><div><dt>Quadro</dt><dd><?= assignature_h($payload['board']['name']) ?></dd></div><?php endif; ?>
             <?php if (isset($payload['technician']['name'])): ?><div><dt>Técnico</dt><dd><?= assignature_h($payload['technician']['name']) ?></dd></div><?php endif; ?></dl>
             <?php if (isset($payload['list']['name']) && (string) $payload['list']['name'] !== ''): ?><dl class="as-facts as-facts-tight"><div><dt>Lista no Tralla</dt><dd><?= assignature_h($payload['list']['name']) ?></dd></div><?php if (!empty($payload['date_approved'])): ?><div><dt>Aprovado em</dt><dd><?= assignature_h(date('d/m/Y H:i', strtotime((string) $payload['date_approved']))) ?></dd></div><?php endif; ?></dl><?php endif; ?>
-            <?php if ($machines !== []): ?>
-                <h3 class="as-machines-title">Máquinas do card <span><?= count($machines) ?></span></h3>
-                <div class="as-machines as-machines-detail">
-                <?php foreach ($machines as $index => $machine): if (!is_array($machine)) { continue; }
+            <?php if ($machines !== []):
+                $machineRows = [];
+                $machineGroups = [];
+                foreach ($machines as $index => $machine) {
+                    if (!is_array($machine)) { continue; }
                     $label = trim((string) ($machine['label'] ?? ''));
                     $model = trim((string) ($machine['model_name'] ?? ''));
-                    $serial = trim((string) ($machine['serial'] ?? ''));
-                    $report = trim((string) ($machine['report'] ?? ''));
                     $status = (string) ($machine['status'] ?? '');
-                    $statusClass = $status === 'done' ? 'is-done' : ($status === 'not_repairable' ? 'is-broken' : 'is-other'); ?>
-                    <article class="as-machine">
-                        <header>
-                            <div>
-                                <strong><?= assignature_h($label !== '' ? $label : ($model !== '' ? $model : 'Máquina ' . ($index + 1))) ?></strong>
-                                <small><?= assignature_h(implode(' · ', array_filter([$label !== '' ? $model : '', $serial !== '' ? 'Série/patrimônio: ' . $serial : 'Sem número de série']))) ?></small>
-                            </div>
-                            <?php if ((string) ($machine['status_label'] ?? '') !== ''): ?><span class="as-machine-status <?= $statusClass ?>"><?= assignature_h($machine['status_label']) ?></span><?php endif; ?>
-                        </header>
-                        <?php if ($report !== ''): ?><div class="as-machine-report"><span>Relatório técnico</span><p><?= nl2br(assignature_h($report)) ?></p></div><?php endif; ?>
-                        <?php if (!empty($machine['service_done']) || !empty($machine['needs_inventory'])): ?><div class="as-machine-flags"><?php if (!empty($machine['service_done'])): ?><span><i class="ti ti-check"></i> Serviço realizado</span><?php endif; ?><?php if (!empty($machine['needs_inventory'])): ?><span class="is-warn"><i class="ti ti-clipboard-list"></i> Precisa de inventário</span><?php endif; ?></div><?php endif; ?>
-                    </article>
+                    $statusLabel = trim((string) ($machine['status_label'] ?? ''));
+                    $row = [
+                        'name'   => $label !== '' ? $label : ($model !== '' ? $model : 'Máquina'),
+                        'model'  => $model !== '' ? $model : ($label !== '' ? $label : 'Máquina'),
+                        'serial' => trim((string) ($machine['serial'] ?? '')),
+                        'report' => trim((string) ($machine['report'] ?? '')),
+                        'status' => $status,
+                        'status_label' => $statusLabel !== '' ? $statusLabel : 'Sem status',
+                        'class'  => $status === 'done' ? 'is-done' : ($status === 'not_repairable' ? 'is-broken' : 'is-other'),
+                        'inventory' => !empty($machine['needs_inventory']),
+                    ];
+                    $machineRows[] = $row;
+                    $groupKey = mb_strtolower($row['model'], 'UTF-8');
+                    $machineGroups[$groupKey]['model'] = $row['model'];
+                    $machineGroups[$groupKey]['total'] = ($machineGroups[$groupKey]['total'] ?? 0) + 1;
+                    $machineGroups[$groupKey]['inventory'] = ($machineGroups[$groupKey]['inventory'] ?? 0) + ($row['inventory'] ? 1 : 0);
+                    $statusKey = $row['status_label'] . '|' . $row['class'];
+                    $machineGroups[$groupKey]['statuses'][$statusKey] = ($machineGroups[$groupKey]['statuses'][$statusKey] ?? 0) + 1;
+                }
+                $machineTotal = count($machineRows); ?>
+                <h3 class="as-machines-title">Máquinas do card <span><?= $machineTotal ?></span></h3>
+                <div class="as-machine-summary">
+                <?php foreach ($machineGroups as $group): ?>
+                    <div class="as-machine-group">
+                        <div class="as-machine-group-name"><strong><?= (int) $group['total'] ?>×</strong> <?= assignature_h($group['model']) ?></div>
+                        <div class="as-machine-group-status">
+                            <?php foreach ($group['statuses'] as $statusKey => $count): [$statusText, $statusClass] = explode('|', $statusKey); ?>
+                                <span class="as-machine-status <?= assignature_h($statusClass) ?>"><?= (int) $count ?> <?= assignature_h(mb_strtolower($statusText, 'UTF-8')) ?></span>
+                            <?php endforeach; ?>
+                            <?php if ((int) $group['inventory'] > 0): ?><span class="as-machine-status is-warn"><?= (int) $group['inventory'] ?> precisa<?= (int) $group['inventory'] > 1 ? 'm' : '' ?> de inventário</span><?php endif; ?>
+                        </div>
+                    </div>
                 <?php endforeach; ?>
                 </div>
+                <details class="as-machine-details"<?= $machineTotal <= 3 ? ' open' : '' ?>>
+                    <summary>Ver <?= $machineTotal === 1 ? 'a máquina' : 'as ' . $machineTotal . ' máquinas' ?> e relatórios</summary>
+                    <ol class="as-machine-compact">
+                    <?php foreach ($machineRows as $row): ?>
+                        <li>
+                            <div class="as-machine-line">
+                                <strong><?= assignature_h($row['name']) ?></strong>
+                                <?php if ($row['serial'] !== ''): ?><small>Série: <?= assignature_h($row['serial']) ?></small><?php endif; ?>
+                                <span class="as-machine-status <?= assignature_h($row['class']) ?>"><?= assignature_h($row['status_label']) ?></span>
+                            </div>
+                            <?php if ($row['report'] !== ''): ?><p title="<?= assignature_h($row['report']) ?>"><?= assignature_h($row['report']) ?></p><?php endif; ?>
+                        </li>
+                    <?php endforeach; ?>
+                    </ol>
+                </details>
             <?php elseif ((string) $source['adapter'] === 'tralla'): ?>
                 <p class="as-hint">Não foi possível carregar as máquinas deste card no Tralla agora.</p>
             <?php endif; ?>
