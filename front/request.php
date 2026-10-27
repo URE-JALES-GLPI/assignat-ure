@@ -42,6 +42,22 @@ $batch = (int) ($request['batches_id'] ?? 0) > 0
     ? PluginAssignatureBatch::get((int) $request['batches_id']) : null;
 $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
 $payload = is_array($payload) ? $payload : [];
+// Tralla: a lista de retiradas não traz as máquinas; busca o card completo na origem.
+if ((string) $source['adapter'] === 'tralla' && (string) $request['status'] === 'pending'
+    && (int) $request['is_active'] === 1 && (int) $source['is_active'] === 1) {
+    try {
+        $detail = PluginAssignatureSource::api($source, 'GET', ['card' => (string) $request['external_id']]);
+        if (is_array($detail) && is_array($detail['machines'] ?? null)) {
+            $payload = array_merge($payload, $detail);
+            global $DB;
+            $DB->update(PluginAssignatureRequest::TABLE, [
+                'payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+            ], ['id' => (int) $request['id']]);
+        }
+    } catch (Throwable $e) {
+        // Sem conexão com o Tralla: mostra o que já estava salvo.
+    }
+}
 $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
 $entityId = (int) ($payload['entities_id'] ?? $payload['entity_id'] ?? ($payload['entity']['id'] ?? 0));
 $entityName = trim((string) ($payload['entity']['name'] ?? $request['title']));
@@ -98,7 +114,33 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <dl class="as-facts"><div><dt>Origem</dt><dd><?= assignature_h($source['name']) ?></dd></div><div><dt>Referência</dt><dd><?= assignature_h($request['code']) ?></dd></div>
             <?php if (isset($payload['board']['name'])): ?><div><dt>Quadro</dt><dd><?= assignature_h($payload['board']['name']) ?></dd></div><?php endif; ?>
             <?php if (isset($payload['technician']['name'])): ?><div><dt>Técnico</dt><dd><?= assignature_h($payload['technician']['name']) ?></dd></div><?php endif; ?></dl>
-            <?php if ($machines !== []): ?><h3>Máquinas</h3><div class="as-machines"><?php foreach ($machines as $machine): if (!is_array($machine)) { continue; } $label = trim((string) ($machine['label'] ?? '')); ?><div><strong><?= assignature_h($label !== '' ? $label : ($machine['model_name'] ?? 'Máquina')) ?></strong><span><?= assignature_h($machine['serial'] ?? '') ?></span><small><?= assignature_h($machine['status_label'] ?? '') ?></small></div><?php endforeach; ?></div><?php endif; ?>
+            <?php if (isset($payload['list']['name']) && (string) $payload['list']['name'] !== ''): ?><dl class="as-facts as-facts-tight"><div><dt>Lista no Tralla</dt><dd><?= assignature_h($payload['list']['name']) ?></dd></div><?php if (!empty($payload['date_approved'])): ?><div><dt>Aprovado em</dt><dd><?= assignature_h(date('d/m/Y H:i', strtotime((string) $payload['date_approved']))) ?></dd></div><?php endif; ?></dl><?php endif; ?>
+            <?php if ($machines !== []): ?>
+                <h3 class="as-machines-title">Máquinas do card <span><?= count($machines) ?></span></h3>
+                <div class="as-machines as-machines-detail">
+                <?php foreach ($machines as $index => $machine): if (!is_array($machine)) { continue; }
+                    $label = trim((string) ($machine['label'] ?? ''));
+                    $model = trim((string) ($machine['model_name'] ?? ''));
+                    $serial = trim((string) ($machine['serial'] ?? ''));
+                    $report = trim((string) ($machine['report'] ?? ''));
+                    $status = (string) ($machine['status'] ?? '');
+                    $statusClass = $status === 'done' ? 'is-done' : ($status === 'not_repairable' ? 'is-broken' : 'is-other'); ?>
+                    <article class="as-machine">
+                        <header>
+                            <div>
+                                <strong><?= assignature_h($label !== '' ? $label : ($model !== '' ? $model : 'Máquina ' . ($index + 1))) ?></strong>
+                                <small><?= assignature_h(implode(' · ', array_filter([$label !== '' ? $model : '', $serial !== '' ? 'Série/patrimônio: ' . $serial : 'Sem número de série']))) ?></small>
+                            </div>
+                            <?php if ((string) ($machine['status_label'] ?? '') !== ''): ?><span class="as-machine-status <?= $statusClass ?>"><?= assignature_h($machine['status_label']) ?></span><?php endif; ?>
+                        </header>
+                        <?php if ($report !== ''): ?><div class="as-machine-report"><span>Relatório técnico</span><p><?= nl2br(assignature_h($report)) ?></p></div><?php endif; ?>
+                        <?php if (!empty($machine['service_done']) || !empty($machine['needs_inventory'])): ?><div class="as-machine-flags"><?php if (!empty($machine['service_done'])): ?><span><i class="ti ti-check"></i> Serviço realizado</span><?php endif; ?><?php if (!empty($machine['needs_inventory'])): ?><span class="is-warn"><i class="ti ti-clipboard-list"></i> Precisa de inventário</span><?php endif; ?></div><?php endif; ?>
+                    </article>
+                <?php endforeach; ?>
+                </div>
+            <?php elseif ((string) $source['adapter'] === 'tralla'): ?>
+                <p class="as-hint">Não foi possível carregar as máquinas deste card no Tralla agora.</p>
+            <?php endif; ?>
         </section>
 
         <?php if ($request['status'] === 'done'): ?>
