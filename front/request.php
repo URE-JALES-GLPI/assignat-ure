@@ -51,7 +51,9 @@ if ($id <= 0 && $cardsParam !== '') {
                 }
                 $found = PluginAssignatureRequest::byExternal((int) $trallaSource['id'], $ref);
             }
-            if ($found !== null && (string) $found['status'] === 'pending' && (int) $found['is_active'] === 1) {
+            if ($found !== null && (string) $found['status'] === 'pending' && (int) $found['is_active'] === 1
+                && (int) ($found['batches_id'] ?? 0) === 0
+                && PluginAssignatureScope::canSign($userId, (int) $found['sources_id'])) {
                 $selectionIds[] = (int) $found['id'];
             }
         }
@@ -70,7 +72,8 @@ $selectedRequests = [];
 foreach ($selectionIds as $selectedId) {
     $selected = PluginAssignatureRequest::get($selectedId);
     if ($selected !== null && (string) $selected['status'] === 'pending' && (int) $selected['is_active'] === 1
-        && PluginAssignatureScope::canSee($userId, (int) $selected['sources_id'], 'pending')) {
+        && (int) ($selected['batches_id'] ?? 0) === 0
+        && PluginAssignatureScope::canSign($userId, (int) $selected['sources_id'])) {
         $selectedRequests[(int) $selected['id']] = $selected;
     }
 }
@@ -114,7 +117,7 @@ $machines = is_array($payload['machines'] ?? null) ? $payload['machines'] : [];
 $entityId = (int) ($payload['entities_id'] ?? $payload['entity_id'] ?? ($payload['entity']['id'] ?? 0));
 $entityName = trim((string) ($payload['entity']['name'] ?? $request['title']));
 $sameEntity = [];
-$isSelection = count($selectedRequests) > 1;
+$isSelection = $selectionLoaded && $selectedRequests !== [];
 if ($isSelection) {
     $sameEntity = array_values($selectedRequests);
 } elseif ((string) $request['status'] === 'pending') {
@@ -146,21 +149,28 @@ echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page as-detail-page">
     <header class="as-page-head"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow"><?= assignature_h($source['name']) ?> · <?= assignature_h($request['code']) ?></p><h1><?= assignature_h($request['title']) ?></h1><p><?= assignature_h($request['summary']) ?></p></div></div><a class="as-button as-button-light as-print-hide" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>
-    <div class="as-request-layout<?= count($sameEntity) > 1 ? ' has-sidebar' : '' ?>">
-    <?php if (count($sameEntity) > 1): ?>
+    <div class="as-request-layout<?= count($sameEntity) > 1 || $isSelection ? ' has-sidebar' : '' ?>">
+    <?php if (count($sameEntity) > 1 || $isSelection): ?>
         <aside class="as-panel as-entity-sidebar as-print-hide" aria-label="Assinaturas pendentes da mesma entidade">
             <?php if ($isSelection): ?><h2>Selecionados</h2><p class="as-hint"><?= count($sameEntity) ?> pedidos marcados no Tralla para assinar juntos</p><?php else: ?><h2>Mesma entidade</h2><p class="as-hint"><?= count($sameEntity) ?> pedidos pendentes de <?= assignature_h($entityName) ?></p><?php endif; ?>
-            <nav class="as-entity-list"><?php foreach ($sameEntity as $candidate): ?>
-                <a class="as-entity-link<?= (int) $candidate['id'] === $id ? ' is-current' : '' ?>" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $candidate['id'] . ($isSelection ? '&sel=' . implode(',', array_keys($selectedRequests)) : ''))) ?>" <?= (int) $candidate['id'] === $id ? 'aria-current="page"' : '' ?>>
+            <nav class="as-entity-list"><?php foreach ($sameEntity as $candidate):
+                $candidateId = (int) $candidate['id'];
+                $remainingIds = array_values(array_diff(array_keys($selectedRequests), [$candidateId]));
+                $nextId = $candidateId === $id ? (int) ($remainingIds[0] ?? 0) : $id;
+                $removeUrl = $remainingIds === [] ? assignature_url('/front/index.php?status=pending')
+                    : assignature_url('/front/request.php?' . http_build_query(['id' => $nextId, 'sel' => implode(',', $remainingIds)]));
+            ?><div class="as-entity-entry">
+                <a class="as-entity-link<?= $candidateId === $id ? ' is-current' : '' ?>" href="<?= assignature_h(assignature_url('/front/request.php?id=' . $candidateId . ($isSelection ? '&sel=' . implode(',', array_keys($selectedRequests)) : ''))) ?>" <?= $candidateId === $id ? 'aria-current="page"' : '' ?>>
                     <strong><?= assignature_h($candidate['code']) ?></strong><span><?= assignature_h($candidate['title']) ?></span>
                 </a>
-            <?php endforeach; ?></nav>
-            <?php if (count($sameEntity) <= 100): ?>
+                <?php if ($isSelection): ?><a class="as-entity-remove" href="<?= assignature_h($removeUrl) ?>" aria-label="Remover <?= assignature_h($candidate['code']) ?> da assinatura em lote" title="Remover da assinatura em lote"><i class="ti ti-x" aria-hidden="true"></i></a><?php endif; ?>
+            </div><?php endforeach; ?></nav>
+            <?php if (!$isSelection && count($sameEntity) <= 100): ?>
                 <form method="get" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>">
                     <?php $batchCount = 0; foreach ($sameEntity as $candidate): if ((int) ($candidate['batches_id'] ?? 0) !== 0 || !PluginAssignatureScope::canSign($userId, (int) $candidate['sources_id'])) { continue; } $batchCount++; ?><input type="hidden" name="ids[]" value="<?= (int) $candidate['id'] ?>"><?php endforeach; ?>
-                    <?php if ($batchCount > 0): ?><button class="as-button as-button-wide" type="submit"><i class="ti ti-checks"></i> <?= $isSelection ? 'Assinar os ' . $batchCount . ' selecionados' : 'Assinar todos juntos' ?></button><?php else: ?><p class="as-hint">Você não tem permissão para assinar estes pedidos.</p><?php endif; ?>
+                    <?php if ($batchCount > 0): ?><button class="as-button as-button-wide" type="submit"><i class="ti ti-checks"></i> Assinar todos juntos</button><?php else: ?><p class="as-hint">Você não tem permissão para assinar estes pedidos.</p><?php endif; ?>
                 </form>
-            <?php else: ?><p class="as-hint">Para assinar em lote, selecione até 100 pedidos na lista de pendentes.</p><?php endif; ?>
+            <?php elseif (!$isSelection): ?><p class="as-hint">Para assinar em lote, selecione até 100 pedidos na lista de pendentes.</p><?php endif; ?>
         </aside>
     <?php endif; ?>
     <div class="as-detail-grid">
@@ -242,7 +252,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
                 <?php if ($batch !== null): ?><a class="as-button as-print-hide" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Ver termo completo</a><?php else: ?><button type="button" class="as-button as-print-hide" onclick="window.print()">Imprimir comprovante</button><?php endif; ?>
             </section>
         <?php elseif ($canSign): ?>
-            <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados do pedido. Você poderá assinar agora ou preparar o termo para assinatura em papel.</p><a class="as-button as-button-wide" href="<?= assignature_h(assignature_url('/front/batch.php?ids%5B%5D=' . (int) $request['id'])) ?>">Escolher como assinar <i class="ti ti-arrow-right"></i></a></section>
+            <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados do<?= $isSelection ? 's ' . count($selectedRequests) . ' pedidos selecionados' : ' pedido' ?>. Você poderá assinar agora ou preparar o termo para assinatura em papel.</p><a class="as-button as-button-wide" href="<?= assignature_h(assignature_url('/front/batch.php?' . http_build_query(['ids' => $isSelection ? array_keys($selectedRequests) : [(int) $request['id']]))) ?>">Escolher como assinar <i class="ti ti-arrow-right"></i></a></section>
         <?php elseif ($batch !== null && (string) $batch['status'] === 'awaiting_upload'): ?>
             <section class="as-panel"><h2>Aguardando arquivo assinado</h2><p>Este pedido faz parte do termo #<?= (int) $batch['id'] ?>. Após enviar o arquivo, a retirada será concluída automaticamente.</p><div class="as-inline-actions"><a class="as-button" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Abrir termo</a><?php if ((int) $batch['created_by_users_id'] === $userId || PluginAssignatureApp::canAdmin()): ?><form method="post" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>" onsubmit="return confirm('Cancelar o termo em papel e mudar todos os pedidos deste lote para Assinar agora?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="convert_to_digital"><input type="hidden" name="batch_id" value="<?= (int) $batch['id'] ?>"><button class="as-button as-button-light" type="submit">Mudar para assinar agora</button></form><?php endif; ?></div></section>
         <?php else: ?>
