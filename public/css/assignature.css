@@ -42,3 +42,4 @@
 .as-document-choice:has(input:checked) .as-document-choice-check{background:#2563eb;border-color:#2563eb;color:#fff}
 .as-flow input[data-document-input]{font-size:18px!important;font-variant-numeric:tabular-nums;font-weight:700!important;letter-spacing:.08em;text-align:center}
 .as-batch-page>.as-batch-actions,.as-batch-page>.as-batch-results{max-width:940px;margin-left:auto;margin-right:auto}
+.as-batch-page>.as-flow{max-width:none;width:100%}
