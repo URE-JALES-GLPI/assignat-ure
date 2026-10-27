@@ -139,7 +139,32 @@
         }
         function refresh() {
             var isCpf = type() === 'CPF';
+            var before = input.value;
+            var start = input.selectionStart;
+            var end = input.selectionEnd;
+            var rawCharacters = function (value) {
+                return isCpf ? digits(value) : value.toUpperCase().replace(/[^0-9X]/g, '');
+            };
+            var startCount = start === null ? null : rawCharacters(before.slice(0, start)).length;
+            var endCount = end === null ? null : rawCharacters(before.slice(0, end)).length;
             input.value = isCpf ? maskCpf(input.value) : maskRg(input.value);
+            function positionAfter(count) {
+                if (count === null) { return input.value.length; }
+                if (count === 0) { return 0; }
+                var seen = 0;
+                for (var index = 0; index < input.value.length; index++) {
+                    if (/[0-9X]/.test(input.value[index])) { seen++; }
+                    if (seen === count) {
+                        var position = index + 1;
+                        while (position < input.value.length && !/[0-9X]/.test(input.value[position])) { position++; }
+                        return position;
+                    }
+                }
+                return input.value.length;
+            }
+            if (document.activeElement === input && startCount !== null && endCount !== null) {
+                input.setSelectionRange(positionAfter(startCount), positionAfter(endCount));
+            }
             input.setAttribute('inputmode', isCpf ? 'numeric' : 'text');
             input.setAttribute('maxlength', isCpf ? '14' : '13');
             input.setAttribute('placeholder', isCpf ? '000.000.000-00' : '00.000.000-0');
@@ -151,9 +176,20 @@
         form.querySelectorAll('[data-key]').forEach(function (key) {
             key.addEventListener('click', function () {
                 var char = key.getAttribute('data-key');
-                input.value = char === '⌫' ? input.value.slice(0, -1) : input.value + char;
-                refresh();
+                var start = input.selectionStart === null ? input.value.length : input.selectionStart;
+                var end = input.selectionEnd === null ? start : input.selectionEnd;
                 input.focus();
+                input.setSelectionRange(start, end);
+                if (char === '⌫') {
+                    if (start === end) {
+                        while (start > 0 && !/[0-9X]/i.test(input.value[start - 1])) { start--; }
+                        if (start > 0) { start--; }
+                    }
+                    input.setRangeText('', start, end, 'start');
+                } else {
+                    input.setRangeText(char, start, end, 'end');
+                }
+                refresh();
             });
         });
         refresh();
@@ -238,7 +274,6 @@
     var flow = document.querySelector('[data-sign-flow]');
     var choices = document.querySelector('[data-sign-choices]');
     var steps = Array.prototype.slice.call(form.querySelectorAll('[data-step]'));
-    var dots = Array.prototype.slice.call(form.querySelectorAll('[data-step-dot]'));
     var methodInput = form.querySelector('[data-method-value]');
     var next = form.querySelector('[data-step-next]');
     var back = form.querySelector('[data-step-back]');
@@ -315,7 +350,6 @@
     function showStep(index) {
         currentStep = index;
         steps.forEach(function (step, i) { step.hidden = i !== index; });
-        dots.forEach(function (dot, i) { dot.classList.toggle('is-active', i === index); dot.classList.toggle('is-done', i < index); });
         back.hidden = index === 0;
         next.hidden = index === 4;
         submit.hidden = index !== 4;
@@ -327,7 +361,6 @@
         choices.hidden = true;
         flow.hidden = false;
         flow.querySelector('[data-flow-title]').textContent = method === 'digital' ? 'Assinar agora' : 'Assinar depois';
-        form.querySelector('[data-steps]').hidden = method !== 'digital';
         signer.required = method === 'digital';
         documentInput.required = method === 'digital';
         form.querySelectorAll('[name="document_type"]').forEach(function (field) { field.required = method === 'digital'; });
