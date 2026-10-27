@@ -6,7 +6,7 @@ Session::checkRight('profile', UPDATE);
 $id = (int) ($_POST['profiles_id'] ?? 0);
 $profile = new Profile();
 if ($id <= 0 || !$profile->getFromDB($id)) {
-    Html::displayErrorAndDie('Perfil inválido.');
+    assignature_abort('Perfil inválido.');
 }
 
 if (isset($_POST['save'])) {

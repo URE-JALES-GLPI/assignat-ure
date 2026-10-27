@@ -61,7 +61,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 
 $batch = $batchId > 0 ? PluginAssignatureBatch::get($batchId) : null;
 if ($batchId > 0 && ($batch === null || !PluginAssignatureBatch::canManage($batch, $userId))) {
-    Html::displayErrorAndDie('Lote não encontrado ou sem acesso.');
+    assignature_abort('Lote não encontrado ou sem acesso.');
 }
 if ($batch === null && $selectedIds === []) {
     Html::redirect(assignature_url('/front/index.php?status=pending'));
@@ -69,14 +69,14 @@ if ($batch === null && $selectedIds === []) {
 $requests = $batch !== null ? PluginAssignatureBatch::requests($batchId) : [];
 if ($batch === null) {
     if (count($selectedIds) > 100) {
-        Html::displayErrorAndDie('Selecione no máximo 100 pedidos.');
+        assignature_abort('Selecione no máximo 100 pedidos.', 400);
     }
     foreach ($selectedIds as $id) {
         $request = PluginAssignatureRequest::get($id);
         if ($request === null || (string) $request['status'] !== 'pending' || (int) $request['is_active'] !== 1
             || (int) ($request['batches_id'] ?? 0) !== 0
             || !PluginAssignatureScope::canSign($userId, (int) $request['sources_id'])) {
-            Html::displayErrorAndDie('Um dos pedidos não está disponível para assinatura.');
+            assignature_abort('Um dos pedidos não está disponível para assinatura.', 409);
         }
         $requests[] = $request;
     }

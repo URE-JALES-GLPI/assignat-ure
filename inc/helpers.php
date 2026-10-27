@@ -33,3 +33,19 @@ function assignature_flash(string $message, bool $success = true): void
 {
     Session::addMessageAfterRedirect($message, $success, $success ? INFO : ERROR);
 }
+
+/** Exibe um erro dentro do GLPI sem depender de métodos removidos do Html. */
+function assignature_abort(string $message, int $status = 404): never
+{
+    http_response_code($status);
+    Html::header('Assignat-ure', $_SERVER['PHP_SELF'] ?? '', 'tools', 'PluginAssignatureApp');
+    echo '<main class="as-page"><section class="as-panel">'
+        . '<h1>Não foi possível abrir esta página</h1>'
+        . '<p>' . assignature_h($message) . '</p>'
+        . '<a class="as-button as-button-light" href="'
+        . assignature_h(assignature_url('/front/index.php?status=pending'))
+        . '">Voltar às assinaturas</a>'
+        . '</section></main>';
+    Html::footer();
+    exit;
+}

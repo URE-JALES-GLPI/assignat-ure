@@ -28,11 +28,11 @@ if ($id <= 0 && $linkSlug !== '' && $linkRef !== '' && $linkRef !== '0' && mb_st
 
 $request = PluginAssignatureRequest::get($id);
 if ($request === null || !PluginAssignatureScope::canSee($userId, (int) $request['sources_id'], (string) $request['status'])) {
-    Html::displayErrorAndDie('Assinatura não encontrada ou sem acesso.');
+    assignature_abort('Assinatura não encontrada ou sem acesso.');
 }
 $source = PluginAssignatureSource::get((int) $request['sources_id']);
 if ($source === null) {
-    Html::displayErrorAndDie('Fonte não encontrada.');
+    assignature_abort('Fonte não encontrada.');
 }
 
 $canSign = (string) $request['status'] === 'pending'

@@ -4,7 +4,7 @@ require_once GLPI_ROOT . '/plugins/assignature/inc/batch.class.php';
 require_once GLPI_ROOT . '/plugins/assignature/inc/technician.class.php';
 
 if (!PluginAssignatureApp::canAdmin()) {
-    Html::displayErrorAndDie('Sem permissão para administrar o Assignat-ure.');
+    assignature_abort('Sem permissão para administrar o Assignat-ure.', 403);
 }
 global $DB;
 
