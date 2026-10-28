@@ -118,6 +118,7 @@ $entityId = (int) ($payload['entities_id'] ?? $payload['entity_id'] ?? ($payload
 $entityName = trim((string) ($payload['entity']['name'] ?? $request['title']));
 $sameEntity = [];
 $isSelection = $selectionLoaded && $selectedRequests !== [];
+$signingIds = $isSelection ? array_keys($selectedRequests) : [$id];
 if ($isSelection) {
     $sameEntity = array_values($selectedRequests);
 } elseif ((string) $request['status'] === 'pending') {
@@ -252,7 +253,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
                 <?php if ($batch !== null): ?><a class="as-button as-print-hide" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Ver termo completo</a><?php else: ?><button type="button" class="as-button as-print-hide" onclick="window.print()">Imprimir comprovante</button><?php endif; ?>
             </section>
         <?php elseif ($canSign): ?>
-            <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados do<?= $isSelection ? 's ' . count($selectedRequests) . ' pedidos selecionados' : ' pedido' ?>. Você poderá assinar agora ou preparar o termo para assinatura em papel.</p><a class="as-button as-button-wide" href="<?= assignature_h(assignature_url('/front/batch.php?' . http_build_query(['ids' => $isSelection ? array_keys($selectedRequests) : [(int) $request['id']]))) ?>">Escolher como assinar <i class="ti ti-arrow-right"></i></a></section>
+            <section class="as-panel"><h2>Assinar retirada</h2><p class="as-hint">Confira os dados do<?= $isSelection ? 's ' . count($selectedRequests) . ' pedidos selecionados' : ' pedido' ?>. Você poderá assinar agora ou preparar o termo para assinatura em papel.</p><a class="as-button as-button-wide" href="<?= assignature_h(assignature_url('/front/batch.php?' . http_build_query(['ids' => $signingIds]))) ?>">Escolher como assinar <i class="ti ti-arrow-right"></i></a></section>
         <?php elseif ($batch !== null && (string) $batch['status'] === 'awaiting_upload'): ?>
             <section class="as-panel"><h2>Aguardando arquivo assinado</h2><p>Este pedido faz parte do termo #<?= (int) $batch['id'] ?>. Após enviar o arquivo, a retirada será concluída automaticamente.</p><div class="as-inline-actions"><a class="as-button" href="<?= assignature_h(assignature_url('/front/batch.php?id=' . (int) $batch['id'])) ?>">Abrir termo</a><?php if ((int) $batch['created_by_users_id'] === $userId || PluginAssignatureApp::canAdmin()): ?><form method="post" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>" onsubmit="return confirm('Cancelar o termo em papel e mudar todos os pedidos deste lote para Assinar agora?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="convert_to_digital"><input type="hidden" name="batch_id" value="<?= (int) $batch['id'] ?>"><button class="as-button as-button-light" type="submit">Mudar para assinar agora</button></form><?php endif; ?></div></section>
         <?php else: ?>
