@@ -141,7 +141,7 @@ $signedBy = '';
 if ((int) $request['signed_by_users_id'] > 0) {
     $user = new User();
     if ($user->getFromDB((int) $request['signed_by_users_id'])) {
-        $signedBy = (string) $user->getFriendlyName();
+        $signedBy = assignature_user_name($user);
     }
 }
 header('Cache-Control: no-store');

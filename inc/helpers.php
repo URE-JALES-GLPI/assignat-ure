@@ -8,6 +8,14 @@ function assignature_h(mixed $value): string
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
+/** Nome de exibição de um usuário do GLPI: primeiro nome e depois sobrenome; sem nenhum dos dois, o login. */
+function assignature_user_name(User $user): string
+{
+    $name = trim(trim((string) ($user->fields['firstname'] ?? '')) . ' ' . trim((string) ($user->fields['realname'] ?? '')));
+
+    return $name !== '' ? $name : trim((string) ($user->fields['name'] ?? ''));
+}
+
 function assignature_url(string $path = ''): string
 {
     global $CFG_GLPI;

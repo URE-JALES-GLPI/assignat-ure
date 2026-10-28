@@ -33,7 +33,7 @@ class PluginAssignatureBatch
         if ($id <= 0 || !$user->getFromDB($id)) {
             throw new RuntimeException('Selecione um técnico cadastrado no GLPI.');
         }
-        return (string) $user->getFriendlyName();
+        return assignature_user_name($user);
     }
 
     public static function technicianName(array $batch): string

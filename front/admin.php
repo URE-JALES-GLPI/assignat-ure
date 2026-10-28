@@ -205,7 +205,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
                 foreach ($scopes as $scope) { $byUser[(int) $scope['users_id']][] = $scope; }
                 foreach ($byUser as $uid => $list):
                     $user = new User();
-                    $userName = $user->getFromDB($uid) ? $user->getFriendlyName() : '#' . $uid;
+                    $userName = $user->getFromDB($uid) ? assignature_user_name($user) : '#' . $uid;
                     $lines = [];
                     foreach ($list as $scope) {
                         $sourceName = '#' . $scope['sources_id'];
