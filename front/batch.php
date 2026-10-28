@@ -102,12 +102,18 @@ $sourceIds = array_values(array_unique(array_map('intval', array_column($request
 $technicians = $batch === null ? PluginAssignatureTechnician::availableForSources($sourceIds) : [];
 $technicianName = $batch !== null ? PluginAssignatureBatch::technicianName($batch) : '';
 $statusText = $batch === null ? 'Nova assinatura' : ((string) $batch['status'] === 'done' ? 'Assinado' : 'Aguardando arquivo');
+$backUrl = $batch === null && $selectedIds !== []
+    ? assignature_url('/front/request.php?' . http_build_query([
+        'id' => $selectedIds[0],
+        'sel' => implode(',', $selectedIds),
+    ]))
+    : assignature_url('/front/index.php');
 header('Cache-Control: no-store');
 Html::header('Assignat-ure', $_SERVER['PHP_SELF'], 'tools', 'PluginAssignatureApp');
 echo "<script>document.title = 'Assignat-ure';</script>";
 ?>
 <main class="as-page as-batch-page">
-    <header class="as-page-head as-print-hide"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">ASSINATURA EM LOTE</p><h1><?= $batch === null ? 'Como deseja assinar?' : 'Lote #' . $batchId ?></h1><p><?= count($requests) ?> pedido(s) · <?= assignature_h($statusText) ?></p></div></div><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar</a></header>
+    <header class="as-page-head as-print-hide"><div class="as-head-brand"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-head-logo"><div><p class="as-eyebrow">ASSINATURA EM LOTE</p><h1><?= $batch === null ? 'Como deseja assinar?' : 'Lote #' . $batchId ?></h1><p><?= count($requests) ?> pedido(s) · <?= assignature_h($statusText) ?></p></div></div><a class="as-button as-button-light" href="<?= assignature_h($backUrl) ?>">Voltar</a></header>
 
     <?php if ($batch === null): ?>
         <section class="as-panel as-batch-summary"><h2>Pedidos selecionados</h2><div class="as-batch-items"><?php foreach ($requests as $request): ?><div><span class="as-source-chip"><?= assignature_h(PluginAssignatureSource::get((int) $request['sources_id'])['name'] ?? '') ?></span><strong><?= assignature_h($request['code']) ?> · <?= assignature_h($request['title']) ?></strong></div><?php endforeach; ?></div></section>
