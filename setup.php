@@ -37,7 +37,7 @@ function plugin_version_assignature(): array
     return [
         'name' => '[URE] Assignat-ure',
         'version' => PLUGIN_ASSIGNATURE_VERSION,
-        'author' => 'URE',
+        'author' => 'Leonardo Poiatti Fação',
         'license' => 'GPLv3+',
         'homepage' => '',
         'requirements' => [
