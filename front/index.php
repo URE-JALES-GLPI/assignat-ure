@@ -38,6 +38,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
     <div class="as-tabs"><a href="?status=&amp;source=<?= $sourceId ?>" class="<?= $status === '' ? 'is-active' : '' ?>">Todas</a><a href="?status=pending&amp;source=<?= $sourceId ?>" class="<?= $status === 'pending' ? 'is-active' : '' ?>">Pendentes</a><a href="?status=done&amp;source=<?= $sourceId ?>" class="<?= $status === 'done' ? 'is-active' : '' ?>">Concluídas</a></div>
     <form method="get" class="as-filter"><label>Fonte<select name="source" onchange="this.form.submit()"><option value="0">Todas as fontes</option><?php foreach ($sources as $source): if (!PluginAssignatureScope::canSee($userId, (int) $source['id'], 'pending') && !PluginAssignatureScope::canSee($userId, (int) $source['id'], 'done')) { continue; } ?><option value="<?= (int) $source['id'] ?>" <?= $sourceId === (int) $source['id'] ? 'selected' : '' ?>><?= assignature_h($source['name']) ?></option><?php endforeach; ?></select></label><input type="hidden" name="status" value="<?= assignature_h($status) ?>"></form>
     <?php if ($requests === []): ?><div class="as-empty"><div class="as-empty-icon"><i class="ti ti-signature"></i></div><h2>Nenhuma assinatura para mostrar</h2><p>Quando houver pedidos nas fontes liberadas para você, eles aparecerão aqui.</p></div><?php else: ?>
+        <div class="as-search"><i class="ti ti-search" aria-hidden="true"></i><input type="search" data-request-search placeholder="Pesquisar escola, card, assinatura ou fonte..." autocomplete="off" aria-label="Pesquisar assinaturas"><span class="as-search-count" data-request-search-count hidden></span></div>
         <?php if ($hasSelectable): ?><div class="as-batch-entry" data-batch-entry><button type="button" class="as-button as-button-light" data-batch-start><i class="ti ti-checkbox"></i> Assinar em lote</button></div><?php endif; ?>
         <form id="as-batch-select" method="get" action="<?= assignature_h(assignature_url('/front/batch.php')) ?>" class="as-batch-toolbar" data-batch-select hidden><div><strong>Selecione os cards</strong><span>A mesma pessoa vai assinar todos os escolhidos.</span></div><div class="as-inline-actions"><button type="button" class="as-text-button" data-select-all>Selecionar todos</button><button type="button" class="as-text-button" data-batch-cancel>Cancelar</button><button type="submit" class="as-button" data-batch-button disabled>Continuar com selecionados <span data-selected-count>0</span></button></div></form>
         <div class="as-request-grid">
@@ -65,6 +66,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             </article>
         <?php endforeach; ?>
         </div>
+        <div class="as-empty" data-request-search-empty hidden><div class="as-empty-icon"><i class="ti ti-search"></i></div><h2>Nenhuma assinatura encontrada</h2><p>Nenhum pedido corresponde à pesquisa. Tente outro termo.</p></div>
     <?php endif; ?>
 </main>
 <?php Html::footer(); ?>

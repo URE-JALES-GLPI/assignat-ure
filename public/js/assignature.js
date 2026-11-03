@@ -43,6 +43,38 @@
         });
     }
 
+    // Pesquisa da lista: filtra os cards a cada letra (sem acento e sem diferenciar maiúsculas).
+    var searchInput = document.querySelector('[data-request-search]');
+    if (searchInput) {
+        var searchCards = Array.prototype.slice.call(document.querySelectorAll('.as-request'));
+        var searchCount = document.querySelector('[data-request-search-count]');
+        var searchEmpty = document.querySelector('[data-request-search-empty]');
+        var searchKey = 'assignature-search';
+        var normalize = function (value) {
+            return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        };
+        var searchTexts = searchCards.map(function (card) { return normalize(card.textContent).replace(/\s+/g, ' '); });
+        var applySearch = function () {
+            var terms = normalize(searchInput.value).split(/\s+/).filter(Boolean);
+            var shown = 0;
+            searchCards.forEach(function (card, index) {
+                var match = terms.every(function (term) { return searchTexts[index].indexOf(term) !== -1; });
+                card.hidden = !match;
+                if (match) { shown++; }
+            });
+            searchCount.hidden = terms.length === 0;
+            searchCount.textContent = shown + ' de ' + searchCards.length;
+            if (searchEmpty) { searchEmpty.hidden = shown > 0; }
+            try { window.sessionStorage.setItem(searchKey, searchInput.value); } catch (error) { /* sem armazenamento */ }
+        };
+        try { searchInput.value = window.sessionStorage.getItem(searchKey) || ''; } catch (error) { /* sem armazenamento */ }
+        searchInput.addEventListener('input', applySearch);
+        searchInput.addEventListener('keydown', function (event) {
+            if (event.key === 'Escape') { searchInput.value = ''; applySearch(); }
+        });
+        applySearch();
+    }
+
     var selection = document.querySelector('[data-batch-select]');
     if (selection) {
         var checks = Array.prototype.slice.call(document.querySelectorAll('[data-batch-check]'));
@@ -89,8 +121,11 @@
         });
         var all = selection.querySelector('[data-select-all]');
         all.addEventListener('click', function () {
-            var shouldSelect = checks.some(function (check) { return !check.checked; });
-            checks.forEach(function (check, index) { check.checked = shouldSelect && index < 100; });
+            // Só os cards visíveis na pesquisa entram no "Selecionar todos".
+            var visibleChecks = checks.filter(function (check) { return !check.closest('.as-request').hidden; });
+            var shouldSelect = visibleChecks.some(function (check) { return !check.checked; });
+            checks.forEach(function (check) { if (check.closest('.as-request').hidden) { check.checked = false; } });
+            visibleChecks.forEach(function (check, index) { check.checked = shouldSelect && index < 100; });
             all.textContent = shouldSelect ? 'Limpar seleção' : 'Selecionar todos';
             updateSelection();
         });
