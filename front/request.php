@@ -178,7 +178,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
         </aside>
     <?php endif; ?>
     <div class="as-detail-grid">
-        <section class="as-panel"><div class="as-section-title"><h2>Pedido</h2><span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : 'Pendente' ?></span></div>
+        <section class="as-panel"><div class="as-section-title"><h2>Pedido</h2><span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : PluginAssignatureRequest::pendingLabel($request) ?></span></div>
             <?php if ((string) ($payload['description'] ?? '') !== ''): ?><p><?= nl2br(assignature_h($payload['description'])) ?></p><?php endif; ?>
             <dl class="as-facts"><div><dt>Origem</dt><dd><?= assignature_h($source['name']) ?></dd></div><div><dt>Referência</dt><dd><?= assignature_h($request['code']) ?></dd></div>
             <?php if (isset($payload['board']['name'])): ?><div><dt>Quadro</dt><dd><?= assignature_h($payload['board']['name']) ?></dd></div><?php endif; ?>

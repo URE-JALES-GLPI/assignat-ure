@@ -62,7 +62,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <article class="as-request">
                 <div class="as-request-top">
                     <span class="as-source-chip"><?= assignature_h($request['source_name']) ?></span>
-                    <span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : ((int) ($request['batches_id'] ?? 0) > 0 ? PluginAssignatureRequest::waitingLabel((int) $request['batches_id']) : 'Pendente') ?></span>
+                    <span class="as-status <?= $request['status'] === 'done' ? 'is-done' : 'is-pending' ?>"><?= $request['status'] === 'done' ? 'Assinado' : ((int) ($request['batches_id'] ?? 0) > 0 ? PluginAssignatureRequest::waitingLabel((int) $request['batches_id']) : PluginAssignatureRequest::pendingLabel($request)) ?></span>
                 </div>
                 <div class="as-request-reference"><i class="ti ti-id"></i><span><?= $isTralla ? 'Card do quadro' : 'Referência de origem' ?></span><strong>#<?= assignature_h($request['code']) ?></strong></div>
                 <a class="as-request-link" href="<?= assignature_h(assignature_url('/front/request.php?id=' . (int) $request['id'])) ?>"><strong><?= assignature_h($request['title']) ?></strong><p><?= assignature_h($request['summary']) ?></p></a>

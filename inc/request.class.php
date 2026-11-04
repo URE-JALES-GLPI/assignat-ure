@@ -252,6 +252,12 @@ class PluginAssignatureRequest
     }
 
     /** Texto do pedido reservado em um termo que ainda não foi assinado. */
+    /** Selo do pedido pendente: as retiradas do Protocolo aparecem separadas das entradas. */
+    public static function pendingLabel(array $request): string
+    {
+        return str_starts_with((string) ($request['external_id'] ?? ''), 'retirada:') ? 'Retirada' : 'Pendente';
+    }
+
     public static function waitingLabel(int $batchId): string
     {
         global $DB;
