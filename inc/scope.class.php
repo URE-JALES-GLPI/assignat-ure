@@ -94,4 +94,21 @@ class PluginAssignatureScope
         }
         return $kept;
     }
+
+    /** Fonte que o usuário deixou escolhida na lista de assinaturas (0 = todas). */
+    public static function preferredSource(int $userId): int
+    {
+        global $DB;
+        $row = $DB->request([
+            'SELECT' => ['sources_id'], 'FROM' => 'glpi_plugin_assignature_user_prefs',
+            'WHERE' => ['users_id' => $userId], 'LIMIT' => 1,
+        ])->current();
+        return is_array($row) ? (int) $row['sources_id'] : 0;
+    }
+
+    public static function savePreferredSource(int $userId, int $sourceId): void
+    {
+        global $DB;
+        $DB->updateOrInsert('glpi_plugin_assignature_user_prefs', ['sources_id' => $sourceId], ['users_id' => $userId]);
+    }
 }

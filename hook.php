@@ -142,6 +142,14 @@ function plugin_assignature_install(): bool
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
     }
 
+    if (!$DB->tableExists('glpi_plugin_assignature_user_prefs')) {
+        $DB->doQuery("CREATE TABLE `glpi_plugin_assignature_user_prefs` (
+            `users_id` INT {$sign} NOT NULL,
+            `sources_id` INT {$sign} NOT NULL DEFAULT 0,
+            PRIMARY KEY (`users_id`)
+        ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
+    }
+
     require_once __DIR__ . '/inc/profile.class.php';
     PluginAssignatureProfile::install();
 
@@ -170,7 +178,7 @@ function plugin_assignature_uninstall(): bool
     if (class_exists('CronTask')) {
         CronTask::unregister('PluginAssignatureSync', 'sync');
     }
-    foreach (['scopes', 'requests', 'batches', 'settings', 'technicians_sources', 'technicians', 'sources'] as $table) {
+    foreach (['user_prefs', 'scopes', 'requests', 'batches', 'settings', 'technicians_sources', 'technicians', 'sources'] as $table) {
         $name = 'glpi_plugin_assignature_' . $table;
         if ($DB->tableExists($name)) {
             $DB->doQuery("DROP TABLE `{$name}`");

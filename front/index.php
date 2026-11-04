@@ -8,7 +8,20 @@ $status = (string) ($_GET['status'] ?? 'pending');
 if (!in_array($status, ['', 'pending', 'done'], true)) {
     $status = 'pending';
 }
-$sourceId = max(0, (int) ($_GET['source'] ?? 0));
+$sources = PluginAssignatureSource::all(true);
+$sourceIds = array_map('intval', array_column($sources, 'id'));
+// A Fonte escolhida fica salva para o usuário; sem escolha na URL, abre como ele deixou.
+if (isset($_GET['source'])) {
+    $sourceId = max(0, (int) $_GET['source']);
+    if ($sourceId === 0 || in_array($sourceId, $sourceIds, true)) {
+        PluginAssignatureScope::savePreferredSource($userId, $sourceId);
+    }
+} else {
+    $sourceId = PluginAssignatureScope::preferredSource($userId);
+    if (!in_array($sourceId, $sourceIds, true)) {
+        $sourceId = 0;
+    }
+}
 PluginAssignatureRequest::syncDueSources($userId);
 $allRequests = PluginAssignatureRequest::visible($userId, '', $sourceId);
 $fingerprint = PluginAssignatureRequest::fingerprint($allRequests);
@@ -16,7 +29,6 @@ $requests = $status === '' ? $allRequests : array_values(array_filter(
     $allRequests,
     static fn (array $request): bool => (string) $request['status'] === $status
 ));
-$sources = PluginAssignatureSource::all(true);
 $hasSelectable = false;
 foreach ($requests as $request) {
     if ((string) $request['status'] === 'pending' && (int) ($request['batches_id'] ?? 0) === 0
