@@ -25,6 +25,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if ($source === null) {
                 throw new RuntimeException('Fonte não encontrada.');
             }
+            if ((int) $source['is_active'] !== 1) {
+                throw new RuntimeException('A fonte ' . $source['name'] . ' está desativada. Edite a fonte e marque "Fonte ativa" para sincronizar.');
+            }
             $count = PluginAssignatureRequest::syncSource($source);
             assignature_flash($count . ' pedido(s) sincronizado(s).');
         } elseif ($action === 'scope_save_multi') {

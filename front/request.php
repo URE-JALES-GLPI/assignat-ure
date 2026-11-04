@@ -10,6 +10,9 @@ $linkSlug = isset($_GET['card']) ? 'tralla' : strtolower(trim((string) ($_GET['s
 $linkRef = isset($_GET['card']) ? (string) (int) $_GET['card'] : trim((string) ($_GET['ref'] ?? ''));
 if ($id <= 0 && $linkSlug !== '' && $linkRef !== '' && $linkRef !== '0' && mb_strlen($linkRef) <= 100) {
     $linkSource = PluginAssignatureSource::bySlug($linkSlug);
+    if ($linkSource !== null && (int) $linkSource['is_active'] !== 1) {
+        assignature_abort('A fonte ' . $linkSource['name'] . ' está desativada no Assignat-ure. Peça a um administrador para marcar "Fonte ativa" em Administração.', 409);
+    }
     if ($linkSource !== null
         && (PluginAssignatureScope::canSee($userId, (int) $linkSource['id'], 'pending')
             || PluginAssignatureScope::canSee($userId, (int) $linkSource['id'], 'done'))) {
