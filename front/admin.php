@@ -114,8 +114,16 @@ echo "<script>document.title = 'Assignat-ure';</script>";
         <a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/index.php')) ?>">Voltar às assinaturas</a>
     </header>
 
+    <nav class="as-tabs as-admin-tabs" role="tablist" aria-label="Guias da administração" data-admin-tabs hidden>
+        <button type="button" role="tab" data-admin-tab-button="fontes"><i class="ti ti-plug-connected" aria-hidden="true"></i> Fontes</button>
+        <button type="button" role="tab" data-admin-tab-button="acessos"><i class="ti ti-users" aria-hidden="true"></i> Acessos</button>
+        <button type="button" role="tab" data-admin-tab-button="tecnicos"><i class="ti ti-signature" aria-hidden="true"></i> Técnicos</button>
+        <button type="button" role="tab" data-admin-tab-button="impressao"><i class="ti ti-printer" aria-hidden="true"></i> Impressão</button>
+        <button type="button" role="tab" data-admin-tab-button="email"><i class="ti ti-mail" aria-hidden="true"></i> Assinatura por e-mail</button>
+        <?php if ($pendingCallbacks !== []): ?><button type="button" role="tab" data-admin-tab-button="confirmacoes"><i class="ti ti-refresh-alert" aria-hidden="true"></i> Confirmações (<?= count($pendingCallbacks) ?>)</button><?php endif; ?>
+    </nav>
     <div class="as-admin-grid">
-        <section class="as-panel">
+        <section class="as-panel" data-admin-tab="fontes">
             <div class="as-section-title"><h2>Fontes conectadas</h2><span><?= count($sources) ?></span></div>
             <?php if ($sources === []): ?><p class="as-empty-inline">Nenhuma fonte cadastrada. Comece pelo Tralla.</p><?php endif; ?>
             <?php foreach ($sources as $source): ?>
@@ -140,7 +148,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             </form>
         </section>
 
-        <section class="as-panel">
+        <section class="as-panel" data-admin-tab="acessos">
             <div class="as-section-title"><h2>Acesso por usuário</h2></div>
             <p class="as-hint">O perfil do GLPI precisa ter a permissão “Visualizar o plugin”. Aqui você escolhe as fontes que o usuário pode ver (uma ou várias), os estados visíveis e quem pode coletar a assinatura.</p>
             <?php $userScopes = $editUserId > 0 ? PluginAssignatureScope::forUser($editUserId) : []; ?>
@@ -232,7 +240,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <?php endif; ?>
         </section>
     </div>
-    <section class="as-panel as-technician-settings">
+    <section class="as-panel as-technician-settings" data-admin-tab="tecnicos">
         <div class="as-section-title"><h2>Assinaturas de técnicos e funcionários</h2><span><?= count($technicians) ?></span></div>
         <p class="as-hint">Cadastre a identificação e a assinatura uma vez. Selecione os plugins onde este técnico pode aparecer. Em lotes com mais de uma origem, somente técnicos liberados para todas elas serão exibidos.</p>
         <?php foreach ($technicians as $technician):
@@ -251,11 +259,11 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <button class="as-button" <?= $sources === [] ? 'disabled' : '' ?>>Salvar assinatura</button>
         </form>
     </section>
-    <section class="as-panel as-printer-settings"><h2>Impressão direta no servidor</h2><p class="as-hint">Fila CUPS da impressora HP no Ubuntu do GLPI. Ao confirmar “Assinar depois”, o termo em PDF é enviado para esta fila.</p><form method="post" class="as-form as-printer-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="printer_save"><label>Nome da fila CUPS<input name="printer_queue" required maxlength="100" value="<?= assignature_h(PluginAssignatureBatch::printerQueue()) ?>" placeholder="HP_PeB"></label><button class="as-button" type="submit">Salvar impressora</button></form></section>
+    <section class="as-panel as-printer-settings" data-admin-tab="impressao"><h2>Impressão direta no servidor</h2><p class="as-hint">Fila CUPS da impressora HP no Ubuntu do GLPI. Ao confirmar “Assinar depois”, o termo em PDF é enviado para esta fila.</p><form method="post" class="as-form as-printer-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="printer_save"><label>Nome da fila CUPS<input name="printer_queue" required maxlength="100" value="<?= assignature_h(PluginAssignatureBatch::printerQueue()) ?>" placeholder="HP_PeB"></label><button class="as-button" type="submit">Salvar impressora</button></form></section>
 
-    <section class="as-panel as-printer-settings"><h2>Assinatura por e-mail</h2><p class="as-hint">Google Apps Script que recebe a assinatura pelo link. A opção "Assinar por e-mail" só aparece depois de configurada. Instalação: pasta <code>appscript</code> do plugin.</p><form method="post" class="as-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="appscript_save"><label>URL do App da Web<input name="appscript_url" type="url" maxlength="255" value="<?= assignature_h(PluginAssignatureRemote::url()) ?>" placeholder="https://script.google.com/macros/s/.../exec"></label><label>Segredo<input name="appscript_secret" type="password" autocomplete="new-password" placeholder="<?= PluginAssignatureRemote::configured() ? 'Em branco mantém o atual' : 'Mostrado pela função configurar()' ?>"></label><button class="as-button" type="submit">Salvar</button></form><?php if (PluginAssignatureRemote::configured()): ?><form method="post" class="as-separated"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="appscript_test"><button class="as-button as-button-light" type="submit">Testar conexão</button></form><?php endif; ?></section>
+    <section class="as-panel as-printer-settings" data-admin-tab="email"><h2>Assinatura por e-mail</h2><p class="as-hint">Google Apps Script que recebe a assinatura pelo link. A opção "Assinar por e-mail" só aparece depois de configurada. Instalação: pasta <code>appscript</code> do plugin.</p><form method="post" class="as-form"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="appscript_save"><label>URL do App da Web<input name="appscript_url" type="url" maxlength="255" value="<?= assignature_h(PluginAssignatureRemote::url()) ?>" placeholder="https://script.google.com/macros/s/.../exec"></label><label>Segredo<input name="appscript_secret" type="password" autocomplete="new-password" placeholder="<?= PluginAssignatureRemote::configured() ? 'Em branco mantém o atual' : 'Mostrado pela função configurar()' ?>"></label><button class="as-button" type="submit">Salvar</button></form><?php if (PluginAssignatureRemote::configured()): ?><form method="post" class="as-separated"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="appscript_test"><button class="as-button as-button-light" type="submit">Testar conexão</button></form><?php endif; ?></section>
 
-    <?php if ($pendingCallbacks !== []): ?><section class="as-panel as-callbacks"><h2>Confirmações aguardando a origem</h2>
+    <?php if ($pendingCallbacks !== []): ?><section class="as-panel as-callbacks" data-admin-tab="confirmacoes"><h2>Confirmações aguardando a origem</h2>
         <?php foreach ($pendingCallbacks as $request): ?><div class="as-source-row"><div><strong><?= assignature_h($request['code']) ?></strong><small><?= assignature_h($request['callback_error'] ?: 'Aguardando envio') ?></small></div><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="callback_retry"><input type="hidden" name="request_id" value="<?= (int) $request['id'] ?>"><button class="as-button as-button-small">Tentar novamente</button></form></div><?php endforeach; ?>
     </section><?php endif; ?>
 </main>

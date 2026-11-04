@@ -238,6 +238,42 @@
         bindDocument(upload);
     }
 
+    // Administração em guias: cada seção tem seus próprios formulários.
+    var adminTabs = document.querySelector('[data-admin-tabs]');
+    if (adminTabs) {
+        var adminPanels = Array.prototype.slice.call(document.querySelectorAll('[data-admin-tab]'));
+        var adminButtons = Array.prototype.slice.call(adminTabs.querySelectorAll('[data-admin-tab-button]'));
+        var showAdminTab = function (tab) {
+            adminPanels.forEach(function (panel) { panel.hidden = panel.getAttribute('data-admin-tab') !== tab; });
+            adminButtons.forEach(function (button) {
+                var active = button.getAttribute('data-admin-tab-button') === tab;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+            });
+            try { window.sessionStorage.setItem('assignature-admin-tab', tab); } catch (error) { /* só conveniência */ }
+            document.dispatchEvent(new CustomEvent('assignature-admin-tab'));
+        };
+        var adminParams = new URLSearchParams(window.location.search);
+        var adminHash = window.location.hash.length > 1 ? document.getElementById(window.location.hash.slice(1)) : null;
+        var adminHashPanel = adminHash ? adminHash.closest('[data-admin-tab]') : null;
+        var adminTab = adminHashPanel ? adminHashPanel.getAttribute('data-admin-tab')
+            : (adminParams.has('technician') ? 'tecnicos'
+                : (adminParams.has('user') ? 'acessos' : (adminParams.has('source') ? 'fontes' : '')));
+        if (!adminTab) {
+            try { adminTab = window.sessionStorage.getItem('assignature-admin-tab') || ''; } catch (error) { adminTab = ''; }
+        }
+        if (!adminTabs.querySelector('[data-admin-tab-button="' + adminTab + '"]')) {
+            adminTab = adminButtons[0].getAttribute('data-admin-tab-button');
+        }
+        document.documentElement.classList.add('as-admin-tabbed');
+        adminTabs.hidden = false;
+        showAdminTab(adminTab);
+        adminTabs.addEventListener('click', function (event) {
+            var button = event.target.closest('[data-admin-tab-button]');
+            if (button) { showAdminTab(button.getAttribute('data-admin-tab-button')); }
+        });
+    }
+
     var technicianForm = document.querySelector('[data-technician-form]');
     if (technicianForm) {
         var technicianCanvas = technicianForm.querySelector('[data-technician-canvas]');
@@ -260,6 +296,12 @@
             technicianSigned = false;
         }
         sizeTechnicianCanvas();
+        // Guia escondida ao carregar: o quadro de assinatura só tem tamanho quando ela abre.
+        document.addEventListener('assignature-admin-tab', function () {
+            if (technicianCanvas.width === 0 && technicianCanvas.getBoundingClientRect().width > 0) {
+                sizeTechnicianCanvas();
+            }
+        });
         technicianCanvas.addEventListener('pointerdown', function (event) {
             event.preventDefault();
             technicianCanvas.setPointerCapture(event.pointerId);
