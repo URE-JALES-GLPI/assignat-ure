@@ -59,6 +59,12 @@ function plugin_assignature_install(): bool
         'technician_document_encrypted' => 'TEXT DEFAULT NULL',
         'technician_signature_png' => 'MEDIUMTEXT DEFAULT NULL',
         'printed_at' => 'DATETIME DEFAULT NULL',
+        'signer_email' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'remote_token' => "CHAR(48) NOT NULL DEFAULT ''",
+        'remote_expires_at' => 'DATETIME DEFAULT NULL',
+        'remote_error' => 'TEXT DEFAULT NULL',
+        'remote_term_sha256' => "CHAR(64) NOT NULL DEFAULT ''",
+        'remote_receipt_sent_at' => 'DATETIME DEFAULT NULL',
     ] as $field => $definition) {
         if (!$DB->fieldExists('glpi_plugin_assignature_batches', $field)) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_assignature_batches` ADD `{$field}` {$definition}") or die($DB->error());
@@ -92,6 +98,14 @@ function plugin_assignature_install(): bool
             PRIMARY KEY (`id`)
         ) ENGINE=InnoDB DEFAULT CHARSET={$charset} COLLATE={$collation}") or die($DB->error());
         $DB->insert('glpi_plugin_assignature_settings', ['printer_queue' => 'HP_PeB']);
+    }
+    foreach ([
+        'appscript_url' => "VARCHAR(255) NOT NULL DEFAULT ''",
+        'appscript_secret_encrypted' => 'TEXT DEFAULT NULL',
+    ] as $field => $definition) {
+        if (!$DB->fieldExists('glpi_plugin_assignature_settings', $field)) {
+            $DB->doQuery("ALTER TABLE `glpi_plugin_assignature_settings` ADD `{$field}` {$definition}") or die($DB->error());
+        }
     }
 
     if (!$DB->tableExists('glpi_plugin_assignature_requests')) {

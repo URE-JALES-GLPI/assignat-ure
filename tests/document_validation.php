@@ -2,7 +2,7 @@
 /** Execute com: php tests/document_validation.php */
 define('GLPI_ROOT', __DIR__);
 class CommonDBTM {}
-require_once dirname(__DIR__) . '/inc/batch.class.php';
+require_once dirname(__DIR__) . '/inc/remote.class.php';
 
 function expectDocumentError(string $type, string $value): void
 {
@@ -37,3 +37,15 @@ if ($singlePaper[4] !== '1' || in_array('sides=two-sided-long-edge', $singlePape
     throw new RuntimeException('Opções de cópias e frente e verso incorretas.');
 }
 echo "Impressão: 1 cópia no papel, 2 no digital, frente e verso em múltiplas páginas: OK\n";
+
+foreach (['https://script.google.com/macros/s/AKfy_c-1/exec', 'https://script.google.com/a/macros/ure.sp.gov.br/s/AKfy/exec'] as $url) {
+    if (!PluginAssignatureRemote::validUrl($url)) {
+        throw new RuntimeException('URL do Apps Script recusada: ' . $url);
+    }
+}
+foreach (['http://script.google.com/macros/s/AK/exec', 'https://script.google.com/macros/s/AK/dev', 'https://script.google.com.evil.test/macros/s/AK/exec', ''] as $url) {
+    if (PluginAssignatureRemote::validUrl($url)) {
+        throw new RuntimeException('URL inválida aceita: ' . $url);
+    }
+}
+echo "URL do Apps Script: OK\n";

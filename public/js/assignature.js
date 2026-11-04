@@ -395,16 +395,19 @@
         methodInput.value = method;
         choices.hidden = true;
         flow.hidden = false;
-        flow.querySelector('[data-flow-title]').textContent = method === 'digital' ? 'Assinar agora' : 'Assinar depois';
+        flow.querySelector('[data-flow-title]').textContent = { digital: 'Assinar agora', paper: 'Assinar depois', appscript: 'Assinar por e-mail' }[method];
+        var remoteField = form.querySelector('[data-remote-field]');
+        remoteField.hidden = method !== 'appscript';
+        remoteField.querySelector('input').required = method === 'appscript';
         signer.required = method === 'digital';
         documentInput.required = method === 'digital';
         form.querySelectorAll('[name="document_type"]').forEach(function (field) { field.required = method === 'digital'; });
         form.querySelector('[name="accepted"]').required = method === 'digital';
         showStep(0);
-        if (method === 'paper') {
+        if (method !== 'digital') {
             next.hidden = true;
             submit.hidden = false;
-            submit.textContent = 'Gerar termo e enviar à impressora';
+            submit.textContent = method === 'paper' ? 'Gerar termo e enviar à impressora' : 'Enviar link por e-mail';
         } else {
             submit.textContent = 'Concluir assinatura do lote';
         }
@@ -439,7 +442,7 @@
     });
     back.addEventListener('click', function () { showStep(Math.max(0, currentStep - 1)); });
     form.addEventListener('submit', function (event) {
-        if (methodInput.value === 'paper') { return; }
+        if (methodInput.value !== 'digital') { return; }
         if (signer.value.trim().split(/\s+/).length < 2 || !validDocument()) {
             event.preventDefault();
             showError('Confira o nome completo e o documento.');

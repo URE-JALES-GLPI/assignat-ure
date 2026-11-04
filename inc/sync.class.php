@@ -3,6 +3,7 @@ if (!defined('GLPI_ROOT')) {
     die('Acesso direto não permitido.');
 }
 require_once __DIR__ . '/request.class.php';
+require_once __DIR__ . '/remote.class.php';
 
 class PluginAssignatureSync extends CommonDBTM
 {
@@ -40,6 +41,11 @@ class PluginAssignatureSync extends CommonDBTM
             } catch (Throwable $e) {
                 $task->log('Retorno #' . $row['id'] . ': ' . $e->getMessage());
             }
+        }
+        try {
+            $count += PluginAssignatureRemote::sync();
+        } catch (Throwable $e) {
+            $task->log('Assinatura por e-mail: ' . $e->getMessage());
         }
         return $count > 0 ? 1 : 0;
     }

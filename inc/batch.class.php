@@ -142,11 +142,16 @@ class PluginAssignatureBatch
     }
 
     public static function create(array $ids, int $userId, int $technicianId, string $method,
-        string $signerName = '', string $documentType = '', string $document = '', string $image = ''): int
+        string $signerName = '', string $documentType = '', string $document = '', string $image = '',
+        string $signerEmail = ''): int
     {
         global $DB;
-        if (!in_array($method, ['digital', 'paper'], true)) {
+        if (!in_array($method, ['digital', 'paper', 'appscript'], true)) {
             throw new RuntimeException('Escolha como a pessoa vai assinar.');
+        }
+        $signerEmail = $method === 'appscript' ? strtolower(trim($signerEmail)) : '';
+        if ($method === 'appscript' && (mb_strlen($signerEmail) > 255 || filter_var($signerEmail, FILTER_VALIDATE_EMAIL) === false)) {
+            throw new RuntimeException('Informe um e-mail válido para enviar o link de assinatura.');
         }
         $profile = PluginAssignatureTechnician::get($technicianId);
         if ($profile === null || (int) $profile['is_active'] !== 1) {
@@ -191,7 +196,11 @@ class PluginAssignatureBatch
                 }
             }
             $DB->insert(self::TABLE, [
-                'method' => $method, 'status' => $method === 'digital' ? 'done' : 'awaiting_upload',
+                'method' => $method,
+                'status' => ['digital' => 'done', 'paper' => 'awaiting_upload', 'appscript' => 'awaiting_remote'][$method],
+                'signer_email' => $signerEmail,
+                'remote_token' => $method === 'appscript' ? bin2hex(random_bytes(24)) : '',
+                'remote_expires_at' => $method === 'appscript' ? date('Y-m-d H:i:s', time() + 7 * 86400) : null,
                 'technician_users_id' => 0, 'technician_profiles_id' => $technicianId,
                 'technician_name' => (string) $profile['full_name'],
                 'technician_document_type' => (string) $profile['document_type'],
@@ -440,18 +449,28 @@ class PluginAssignatureBatch
 
     public static function cancel(int $batchId, int $userId): void
     {
-        global $DB;
         $batch = self::get($batchId);
-        if ($batch === null || (string) $batch['status'] !== 'awaiting_upload'
+        if ($batch === null || !in_array((string) $batch['status'], ['awaiting_upload', 'awaiting_remote'], true)
             || ((int) $batch['created_by_users_id'] !== $userId && !PluginAssignatureApp::canAdmin())
             || !self::canManage($batch, $userId)) {
             throw new RuntimeException('Você não pode cancelar este termo.');
         }
+        self::release($batchId);
+        if ((string) $batch['status'] === 'awaiting_remote') {
+            require_once __DIR__ . '/remote.class.php';
+            PluginAssignatureRemote::remove((string) $batch['remote_token']);
+        }
+    }
+
+    /** Cancela o termo que ainda não foi assinado e devolve os pedidos para a lista. */
+    public static function release(int $batchId): void
+    {
+        global $DB;
         $DB->beginTransaction();
         try {
             $DB->doQuery('SELECT `id` FROM `' . self::TABLE . '` WHERE `id` = ' . $batchId . ' FOR UPDATE');
             $fresh = self::get($batchId);
-            if ($fresh === null || (string) $fresh['status'] !== 'awaiting_upload') {
+            if ($fresh === null || !in_array((string) $fresh['status'], ['awaiting_upload', 'awaiting_remote'], true)) {
                 throw new RuntimeException('Este termo já foi concluído.');
             }
             $DB->update(self::TABLE, ['status' => 'cancelled'], ['id' => $batchId]);
@@ -463,6 +482,84 @@ class PluginAssignatureBatch
             $DB->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Conclui o termo com a assinatura feita pelo link. A partir daqui ele é um termo digital
+     * como os demais; signer_email continua indicando que veio do link.
+     */
+    public static function completeRemote(array $batch, array $signed): void
+    {
+        global $DB;
+        $batchId = (int) $batch['id'];
+        $signerName = mb_strtoupper(trim((string) ($signed['signer_name'] ?? '')), 'UTF-8');
+        if (mb_strlen($signerName) > 255 || count(preg_split('/\s+/u', $signerName)) < 2) {
+            throw new RuntimeException('Nome de quem assinou inválido.');
+        }
+        $documentType = strtoupper((string) ($signed['document_type'] ?? ''));
+        $formatted = self::document($documentType, (string) ($signed['document'] ?? ''));
+        $png = self::signaturePng((string) ($signed['signature_png'] ?? ''));
+        $signedAt = strtotime((string) ($signed['signed_at'] ?? ''));
+        $signedAt = $signedAt === false || $signedAt > time() ? assignature_now() : date('Y-m-d H:i:s', $signedAt);
+        $requests = self::requests($batchId);
+        if ($requests === []) {
+            throw new RuntimeException('O termo não contém pedidos.');
+        }
+        foreach ($requests as $request) {
+            $source = PluginAssignatureSource::get((int) $request['sources_id']);
+            if ($source === null || (int) $source['is_active'] !== 1) {
+                throw new RuntimeException('A fonte de um pedido está inativa.');
+            }
+            $detail = PluginAssignatureSource::api($source, 'GET',
+                (string) $source['adapter'] === 'tralla'
+                    ? ['card' => $request['external_id']]
+                    : ['id' => $request['external_id']]
+            );
+            $expected = (string) $source['adapter'] === 'tralla' ? 'withdrawal' : 'pending';
+            if ((string) ($detail['status'] ?? '') !== $expected) {
+                throw new RuntimeException('O pedido ' . $request['code'] . ' não está mais pendente na origem.');
+            }
+        }
+        $now = assignature_now();
+        $userId = (int) $batch['created_by_users_id'];
+        $DB->beginTransaction();
+        try {
+            $DB->doQuery('SELECT `id` FROM `' . self::TABLE . '` WHERE `id` = ' . $batchId . ' FOR UPDATE');
+            $fresh = self::get($batchId);
+            if ($fresh === null || (string) $fresh['status'] !== 'awaiting_remote') {
+                throw new RuntimeException('Este termo não está mais aguardando assinatura.');
+            }
+            foreach ($requests as $request) {
+                $id = (int) $request['id'];
+                $DB->doQuery('SELECT `id` FROM `' . PluginAssignatureRequest::TABLE . '` WHERE `id` = ' . $id . ' FOR UPDATE');
+                $current = PluginAssignatureRequest::get($id);
+                if ($current === null || (string) $current['status'] !== 'pending'
+                    || (int) $current['batches_id'] !== $batchId || (int) $current['is_active'] !== 1) {
+                    throw new RuntimeException('Um pedido mudou enquanto aguardava a assinatura.');
+                }
+            }
+            $DB->update(self::TABLE, [
+                'method' => 'digital', 'status' => 'done', 'signer_name' => $signerName,
+                'document_type' => $documentType,
+                'document_encrypted' => (new GLPIKey())->encrypt($formatted),
+                'signature_png' => $png, 'completed_by_users_id' => $userId,
+                'completed_at' => $signedAt, 'remote_error' => '',
+            ], ['id' => $batchId]);
+            foreach ($requests as $request) {
+                $DB->update(PluginAssignatureRequest::TABLE, [
+                    'status' => 'done', 'signature_png' => '',
+                    'signer_name' => $signerName, 'signer_document' => '',
+                    'signed_by_users_id' => $userId, 'signed_at' => $signedAt,
+                    'receipt_key' => bin2hex(random_bytes(24)), 'callback_state' => 'pending',
+                    'date_mod' => $now,
+                ], ['id' => (int) $request['id']]);
+            }
+            $DB->commit();
+        } catch (Throwable $e) {
+            $DB->rollBack();
+            throw $e;
+        }
+        self::callbacks(array_column($requests, 'id'));
     }
 
     public static function printerQueue(): string

@@ -251,6 +251,21 @@ class PluginAssignatureRequest
         return self::get($id) ?? [];
     }
 
+    /** Texto do pedido reservado em um termo que ainda não foi assinado. */
+    public static function waitingLabel(int $batchId): string
+    {
+        global $DB;
+        static $labels = [];
+        if (!isset($labels[$batchId])) {
+            $batch = $DB->request([
+                'SELECT' => ['status'], 'FROM' => 'glpi_plugin_assignature_batches', 'WHERE' => ['id' => $batchId], 'LIMIT' => 1,
+            ])->current();
+            $labels[$batchId] = is_array($batch) && (string) $batch['status'] === 'awaiting_remote'
+                ? 'Aguardando assinatura por e-mail' : 'Aguardando arquivo';
+        }
+        return $labels[$batchId];
+    }
+
     public static function sendCallback(int $id): void
     {
         global $DB;

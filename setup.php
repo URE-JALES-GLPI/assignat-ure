@@ -4,7 +4,7 @@
 require_once __DIR__ . '/inc/profile.class.php';
 require_once __DIR__ . '/inc/app.class.php';
 
-define('PLUGIN_ASSIGNATURE_VERSION', '0.4.3');
+define('PLUGIN_ASSIGNATURE_VERSION', '0.4.4');
 
 function plugin_init_assignature(): void
 {
@@ -23,6 +23,7 @@ function plugin_init_assignature(): void
         'glpi_plugin_assignature_batches.document_encrypted',
         'glpi_plugin_assignature_batches.technician_document_encrypted',
         'glpi_plugin_assignature_technicians.document_encrypted',
+        'glpi_plugin_assignature_settings.appscript_secret_encrypted',
     ];
     $versioned = static function (string $path): string {
         $mtime = @filemtime(__DIR__ . '/' . $path);

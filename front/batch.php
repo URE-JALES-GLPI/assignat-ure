@@ -1,6 +1,7 @@
 <?php
 include('../../../inc/includes.php');
 require_once GLPI_ROOT . '/plugins/assignature/inc/batch.class.php';
+require_once GLPI_ROOT . '/plugins/assignature/inc/remote.class.php';
 
 Session::checkRight(PluginAssignatureProfile::RIGHT_VIEW, READ);
 $userId = (int) Session::getLoginUserID();
@@ -15,12 +16,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $selectedIds, $userId, (int) ($_POST['technician_profiles_id'] ?? 0),
                 (string) ($_POST['method'] ?? ''), (string) ($_POST['signer_name'] ?? ''),
                 (string) ($_POST['document_type'] ?? ''), (string) ($_POST['signer_document'] ?? ''),
-                (string) ($_POST['signature_png'] ?? '')
+                (string) ($_POST['signature_png'] ?? ''), (string) ($_POST['signer_email'] ?? '')
             );
-            $job = PluginAssignatureBatch::printTerm($batchId, $userId);
-            assignature_flash((string) ($_POST['method'] ?? '') === 'paper'
-                ? 'Termo enviado à impressora (1 cópia). ' . $job . ' Após a assinatura à mão, envie o arquivo.'
-                : 'Assinatura registrada e termo enviado à impressora (2 cópias). ' . $job);
+            if ((string) ($_POST['method'] ?? '') === 'appscript') {
+                PluginAssignatureRemote::send($batchId);
+                assignature_flash('Link de assinatura enviado por e-mail.');
+            } else {
+                $job = PluginAssignatureBatch::printTerm($batchId, $userId);
+                assignature_flash((string) ($_POST['method'] ?? '') === 'paper'
+                    ? 'Termo enviado à impressora (1 cópia). ' . $job . ' Após a assinatura à mão, envie o arquivo.'
+                    : 'Assinatura registrada e termo enviado à impressora (2 cópias). ' . $job);
+            }
         } elseif ($action === 'upload') {
             PluginAssignatureBatch::upload(
                 $batchId, $userId, (string) ($_POST['signer_name'] ?? ''),
@@ -32,6 +38,21 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             PluginAssignatureBatch::cancel($batchId, $userId);
             assignature_flash('Termo cancelado. Os pedidos voltaram a ficar disponíveis.');
             $redirectUrl = assignature_url('/front/index.php?status=pending');
+        } elseif ($action === 'remote_resend') {
+            $batch = PluginAssignatureBatch::get($batchId);
+            if ($batch === null || !PluginAssignatureBatch::canManage($batch, $userId)
+                || ((int) $batch['created_by_users_id'] !== $userId && !PluginAssignatureApp::canAdmin())) {
+                throw new RuntimeException('Você não pode reenviar este link.');
+            }
+            PluginAssignatureRemote::send($batchId);
+            assignature_flash('Link enviado novamente.');
+        } elseif ($action === 'remote_check') {
+            $batch = PluginAssignatureBatch::get($batchId);
+            if ($batch === null || !PluginAssignatureBatch::canManage($batch, $userId)) {
+                throw new RuntimeException('Termo não encontrado.');
+            }
+            PluginAssignatureRemote::sync();
+            assignature_flash('Verificação concluída.');
         } elseif ($action === 'convert_to_digital') {
             $batch = PluginAssignatureBatch::get($batchId);
             if ($batch === null || (string) $batch['method'] !== 'paper'
@@ -62,9 +83,10 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     } catch (Throwable $e) {
         $message = $e->getMessage();
         if ($batchId > 0 && (string) ($_POST['action'] ?? '') === 'create') {
-            $message = ((string) ($_POST['method'] ?? '') === 'digital'
-                ? 'Assinatura registrada, mas a impressão falhou: '
-                : 'Termo criado, mas a impressão falhou: ') . $message . ' Abra o termo para tentar novamente.';
+            $message = ['digital' => 'Assinatura registrada, mas a impressão falhou: ',
+                'appscript' => 'Termo criado, mas o link não foi enviado: ',
+            ][(string) ($_POST['method'] ?? '')] ?? 'Termo criado, mas a impressão falhou: ';
+            $message = $message . $e->getMessage() . ' Abra o termo para tentar novamente.';
         }
         assignature_flash($message, false);
         $redirectUrl = $batchId > 0
@@ -101,7 +123,7 @@ $termContext = $batch !== null ? PluginAssignatureBatch::termContext($requests) 
 $sourceIds = array_values(array_unique(array_map('intval', array_column($requests, 'sources_id'))));
 $technicians = $batch === null ? PluginAssignatureTechnician::availableForSources($sourceIds) : [];
 $technicianName = $batch !== null ? PluginAssignatureBatch::technicianName($batch) : '';
-$statusText = $batch === null ? 'Nova assinatura' : ((string) $batch['status'] === 'done' ? 'Assinado' : 'Aguardando arquivo');
+$statusText = $batch === null ? 'Nova assinatura' : ['done' => 'Assinado', 'awaiting_remote' => 'Aguardando assinatura por e-mail'][(string) $batch['status']] ?? 'Aguardando arquivo';
 $backUrl = $batch === null && $selectedIds !== []
     ? assignature_url('/front/request.php?' . http_build_query([
         'id' => $selectedIds[0],
@@ -120,13 +142,14 @@ echo "<script>document.title = 'Assignat-ure';</script>";
         <div class="as-choice-grid" data-sign-choices>
             <button type="button" class="as-choice" data-choose-method="digital"><i class="ti ti-pencil"></i><strong>Assinar agora</strong><span>O retirante informa os dados e assina uma vez na tela para todos os pedidos.</span><em>Começar <i class="ti ti-arrow-right"></i></em></button>
             <button type="button" class="as-choice" data-choose-method="paper"><i class="ti ti-printer"></i><strong>Assinar depois</strong><span>Escolha o técnico. O termo será enviado à impressora; a pessoa assina à mão e você envia o arquivo depois.</span><em>Preparar impressão <i class="ti ti-arrow-right"></i></em></button>
+            <?php if (PluginAssignatureRemote::configured()): ?><button type="button" class="as-choice" data-choose-method="appscript"><i class="ti ti-mail-forward"></i><strong>Assinar por e-mail</strong><span>Escolha o técnico e informe o e-mail. A pessoa recebe um link, assina de onde estiver e o termo assinado chega por e-mail.</span><em>Enviar link <i class="ti ti-arrow-right"></i></em></button><?php endif; ?>
         </div>
         <section class="as-panel as-flow" data-sign-flow hidden>
             <div class="as-section-title"><h2 data-flow-title>Assinar agora</h2><button type="button" class="as-text-button" data-back-choices>Trocar opção</button></div>
             <form method="post" class="as-form" data-batch-form data-sign-form>
                 <?= assignature_csrf_field() ?><input type="hidden" name="action" value="create"><input type="hidden" name="method" data-method-value><input type="hidden" name="signature_png" data-signature-value>
                 <?php foreach ($selectedIds as $id): ?><input type="hidden" name="ids[]" value="<?= $id ?>"><?php endforeach; ?>
-                <div data-step="0"><p class="as-step-label">1 de 5 · Técnico responsável</p><h3>Quem acompanha a retirada?</h3><label>Assinatura cadastrada do técnico<select name="technician_profiles_id" required><option value="">Selecione o técnico</option><?php foreach ($technicians as $technician): ?><option value="<?= (int) $technician['id'] ?>"><?= assignature_h($technician['full_name']) ?></option><?php endforeach; ?></select></label><?php foreach ($technicians as $technician): ?><div class="as-technician-choice" data-technician-detail="<?= (int) $technician['id'] ?>" hidden><strong><?= assignature_h($technician['full_name']) ?></strong><span><?= assignature_h(PluginAssignatureTechnician::maskedDocument($technician)) ?></span><img src="data:image/png;base64,<?= assignature_h($technician['signature_png']) ?>" alt="Assinatura cadastrada"></div><?php endforeach; ?><?php if ($technicians === []): ?><p class="as-form-error">Nenhum técnico com assinatura está cadastrado para todos os plugins deste lote. Peça a um administrador que faça o cadastro.</p><?php endif; ?><p class="as-hint">O nome, documento e assinatura cadastrados do técnico serão incluídos no termo.</p></div>
+                <div data-step="0"><p class="as-step-label">1 de 5 · Técnico responsável</p><h3>Quem acompanha a retirada?</h3><label>Assinatura cadastrada do técnico<select name="technician_profiles_id" required><option value="">Selecione o técnico</option><?php foreach ($technicians as $technician): ?><option value="<?= (int) $technician['id'] ?>"><?= assignature_h($technician['full_name']) ?></option><?php endforeach; ?></select></label><?php foreach ($technicians as $technician): ?><div class="as-technician-choice" data-technician-detail="<?= (int) $technician['id'] ?>" hidden><strong><?= assignature_h($technician['full_name']) ?></strong><span><?= assignature_h(PluginAssignatureTechnician::maskedDocument($technician)) ?></span><img src="data:image/png;base64,<?= assignature_h($technician['signature_png']) ?>" alt="Assinatura cadastrada"></div><?php endforeach; ?><?php if ($technicians === []): ?><p class="as-form-error">Nenhum técnico com assinatura está cadastrado para todos os plugins deste lote. Peça a um administrador que faça o cadastro.</p><?php endif; ?><p class="as-hint">O nome, documento e assinatura cadastrados do técnico serão incluídos no termo.</p><label data-remote-field hidden>E-mail de quem vai assinar<input type="email" name="signer_email" maxlength="255" autocomplete="off" placeholder="nome@exemplo.gov.br"></label></div>
                 <div data-step="1" hidden><p class="as-step-label">2 de 5 · Retirante</p><h3>Nome completo de quem retira</h3><label>Nome completo<input name="signer_name" data-uppercase maxlength="255" autocomplete="name" placeholder="NOME E SOBRENOME" required></label></div>
                 <div data-step="2" hidden>
                     <p class="as-step-label">3 de 5 · Identificação</p>
@@ -162,12 +185,27 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <table class="as-term-table"><thead><tr><th>#</th><th>Equipamento / pedido</th><th>Status final</th><th>Serviço / observações</th></tr></thead><tbody><?php foreach ($termRows as $index => $row): ?><tr><td><?= $index + 1 ?></td><td><strong><?= assignature_h($row['name']) ?></strong><small>#<?= assignature_h($row['code']) ?></small></td><td><strong><?= assignature_h($row['status']) ?></strong></td><td><?= nl2br(assignature_h($row['report'] !== '' ? $row['report'] : '—')) ?></td></tr><?php endforeach; ?></tbody></table>
             <h3 class="as-term-section-title">Assinaturas</h3>
             <div class="as-term-signatures"><div class="as-term-signature-card"><div class="as-term-signature-ink"><?php if ((string) ($batch['technician_signature_png'] ?? '') !== ''): ?><img src="data:image/png;base64,<?= assignature_h($batch['technician_signature_png']) ?>" alt="Assinatura do técnico"><?php endif; ?></div><strong>Responsável pela entrega (técnico)</strong><small>Nome: <?= assignature_h($technicianName) ?></small><small>Documento: <?= assignature_h($batch['technician_document_type'] . ' ' . PluginAssignatureBatch::technicianDocument($batch)) ?></small></div><div class="as-term-signature-card"><div class="as-term-signature-ink"><?php if ((string) $batch['method'] === 'digital'): ?><img src="data:image/png;base64,<?= assignature_h($batch['signature_png']) ?>" alt="Assinatura de quem retira"><?php endif; ?></div><strong>Responsável pelo recebimento</strong><small>Nome: <?= assignature_h($batch['signer_name'] ?: '____________________________') ?></small><small>Documento: <?= (string) $batch['method'] === 'digital' ? assignature_h($batch['document_type'] . ' ' . PluginAssignatureBatch::decryptedDocument($batch)) : '____________________________' ?></small><?php if ((string) $batch['method'] === 'digital'): ?><small>Assinado em <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['completed_at'], true)) ?></small><?php endif; ?></div></div>
-            <p class="as-term-foot">[URE] Assignat-ure · Termo #<?= $batchId ?> · <?= (string) $batch['status'] === 'done' ? 'Assinatura registrada' : 'Aguardando assinatura no papel' ?></p>
+            <p class="as-term-foot">[URE] Assignat-ure · Termo #<?= $batchId ?> · <?= ['done' => 'Assinatura registrada', 'awaiting_remote' => 'Aguardando assinatura por e-mail'][(string) $batch['status']] ?? 'Aguardando assinatura no papel' ?></p>
         </section>
         <div class="as-batch-actions as-print-hide">
              <?php if (((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload') || ((string) $batch['method'] === 'digital' && (string) $batch['status'] === 'done')): ?><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="print"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button type="submit" class="as-button"><i class="ti ti-printer"></i> <?= empty($batch['printed_at']) ? 'Enviar' : 'Reimprimir' ?> para <?= assignature_h(PluginAssignatureBatch::printerQueue()) ?> (<?= (string) $batch['method'] === 'digital' ? '2 cópias' : '1 cópia' ?>)</button></form><?php endif; ?>
             <?php if ((string) $batch['status'] === 'done' && (string) $batch['method'] === 'paper'): ?><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/file.php?id=' . $batchId)) ?>"><i class="ti ti-download"></i> Ver arquivo assinado</a><?php endif; ?>
         </div>
+        <?php if ((string) $batch['status'] === 'awaiting_remote'): ?>
+            <section class="as-panel as-upload-panel as-print-hide">
+                <h2>Aguardando assinatura por e-mail</h2>
+                <p class="as-hint">Link enviado para <strong><?= assignature_h($batch['signer_email']) ?></strong>, válido até <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['remote_expires_at'], true)) ?>. O sistema verifica as assinaturas a cada 5 minutos e conclui o termo sozinho. Sem assinatura até essa data, os pedidos voltam para a lista.</p>
+                <?php if ((string) ($batch['remote_error'] ?? '') !== ''): ?><p class="as-form-error"><?= assignature_h($batch['remote_error']) ?></p><?php endif; ?>
+                <div class="as-inline-actions">
+                    <form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="remote_check"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-button" type="submit"><i class="ti ti-refresh"></i> Verificar agora</button></form>
+                    <form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="remote_resend"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-button as-button-light" type="submit"><i class="ti ti-mail-forward"></i> Reenviar link</button></form>
+                </div>
+                <form method="post" class="as-cancel-form" onsubmit="return confirm('Cancelar o termo, invalidar o link e liberar os pedidos para uma nova assinatura?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-text-button">Cancelar termo</button></form>
+            </section>
+        <?php endif; ?>
+        <?php if ((string) $batch['status'] === 'done' && (string) ($batch['signer_email'] ?? '') !== '' && empty($batch['remote_receipt_sent_at'])): ?>
+            <p class="as-warning as-print-hide">O comprovante ainda não foi enviado para <?= assignature_h($batch['signer_email']) ?>. O sistema tentará novamente.<?= (string) ($batch['remote_error'] ?? '') !== '' ? ' ' . assignature_h($batch['remote_error']) : '' ?></p>
+        <?php endif; ?>
         <?php if ((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload'
             && ((int) $batch['created_by_users_id'] === $userId || PluginAssignatureApp::canAdmin())): ?>
             <section class="as-panel as-switch-signing as-print-hide">
