@@ -169,11 +169,15 @@ function plugin_assignature_install(): bool
 
     if (class_exists('CronTask')) {
         require_once __DIR__ . '/inc/sync.class.php';
-        CronTask::register('PluginAssignatureSync', 'sync', 300, [
+        CronTask::register('PluginAssignatureSync', 'sync', MINUTE_TIMESTAMP, [
             'state' => CronTask::STATE_WAITING,
             'mode' => CronTask::MODE_EXTERNAL,
             'comment' => 'Assignat-ure: sincronizar pedidos e confirmações',
             'logs_lifetime' => 30,
+        ]);
+        // O register não altera tarefa já existente.
+        $DB->update('glpi_crontasks', ['frequency' => MINUTE_TIMESTAMP], [
+            'itemtype' => 'PluginAssignatureSync', 'name' => 'sync',
         ]);
     }
     return true;

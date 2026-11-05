@@ -4,7 +4,7 @@
 require_once __DIR__ . '/inc/profile.class.php';
 require_once __DIR__ . '/inc/app.class.php';
 
-define('PLUGIN_ASSIGNATURE_VERSION', '0.4.4');
+define('PLUGIN_ASSIGNATURE_VERSION', '0.4.5');
 
 function plugin_init_assignature(): void
 {

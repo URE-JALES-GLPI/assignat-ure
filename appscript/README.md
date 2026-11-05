@@ -1,7 +1,7 @@
 # Assinatura por e-mail (Google Apps Script)
 
 Página onde a pessoa assina o termo pelo link recebido por e-mail. O GLPI busca a assinatura aqui
-a cada 5 minutos: o Google nunca precisa acessar o servidor do GLPI.
+a cada minuto: o Google nunca precisa acessar o servidor do GLPI.
 
 ## Instalação
 
