@@ -123,6 +123,9 @@ $termContext = $batch !== null ? PluginAssignatureBatch::termContext($requests) 
 $sourceIds = array_values(array_unique(array_map('intval', array_column($requests, 'sources_id'))));
 $technicians = $batch === null ? PluginAssignatureTechnician::availableForSources($sourceIds) : [];
 $technicianName = $batch !== null ? PluginAssignatureBatch::technicianName($batch) : '';
+$entityContacts = $batch === null && PluginAssignatureRemote::configured()
+    ? PluginAssignatureRemote::entityEmails($requests)
+    : ['available' => false, 'emails' => [], 'missing' => []];
 $statusText = $batch === null ? 'Nova assinatura' : ['done' => 'Assinado', 'awaiting_remote' => 'Aguardando assinatura por e-mail'][(string) $batch['status']] ?? 'Aguardando arquivo';
 $backUrl = $batch === null && $selectedIds !== []
     ? assignature_url('/front/request.php?' . http_build_query([
@@ -149,7 +152,27 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <form method="post" class="as-form" data-batch-form data-sign-form>
                 <?= assignature_csrf_field() ?><input type="hidden" name="action" value="create"><input type="hidden" name="method" data-method-value><input type="hidden" name="signature_png" data-signature-value>
                 <?php foreach ($selectedIds as $id): ?><input type="hidden" name="ids[]" value="<?= $id ?>"><?php endforeach; ?>
-                <div data-step="0"><p class="as-step-label">1 de 5 · Técnico responsável</p><h3>Quem acompanha a retirada?</h3><label>Assinatura cadastrada do técnico<select name="technician_profiles_id" required><option value="">Selecione o técnico</option><?php foreach ($technicians as $technician): ?><option value="<?= (int) $technician['id'] ?>"><?= assignature_h($technician['full_name']) ?></option><?php endforeach; ?></select></label><?php foreach ($technicians as $technician): ?><div class="as-technician-choice" data-technician-detail="<?= (int) $technician['id'] ?>" hidden><strong><?= assignature_h($technician['full_name']) ?></strong><span><?= assignature_h(PluginAssignatureTechnician::maskedDocument($technician)) ?></span><img src="data:image/png;base64,<?= assignature_h($technician['signature_png']) ?>" alt="Assinatura cadastrada"></div><?php endforeach; ?><?php if ($technicians === []): ?><p class="as-form-error">Nenhum técnico com assinatura está cadastrado para todos os plugins deste lote. Peça a um administrador que faça o cadastro.</p><?php endif; ?><p class="as-hint">O nome, documento e assinatura cadastrados do técnico serão incluídos no termo.</p><label data-remote-field hidden>E-mail de quem vai assinar<input type="email" name="signer_email" maxlength="255" autocomplete="off" placeholder="nome@exemplo.gov.br"></label></div>
+                <div data-step="0"><p class="as-step-label">1 de 5 · Técnico responsável</p><h3>Quem acompanha a retirada?</h3><label>Assinatura cadastrada do técnico<select name="technician_profiles_id" required><option value="">Selecione o técnico</option><?php foreach ($technicians as $technician): ?><option value="<?= (int) $technician['id'] ?>"><?= assignature_h($technician['full_name']) ?></option><?php endforeach; ?></select></label><?php foreach ($technicians as $technician): ?><div class="as-technician-choice" data-technician-detail="<?= (int) $technician['id'] ?>" hidden><strong><?= assignature_h($technician['full_name']) ?></strong><span><?= assignature_h(PluginAssignatureTechnician::maskedDocument($technician)) ?></span><img src="data:image/png;base64,<?= assignature_h($technician['signature_png']) ?>" alt="Assinatura cadastrada"></div><?php endforeach; ?><?php if ($technicians === []): ?><p class="as-form-error">Nenhum técnico com assinatura está cadastrado para todos os plugins deste lote. Peça a um administrador que faça o cadastro.</p><?php endif; ?><p class="as-hint">O nome, documento e assinatura cadastrados do técnico serão incluídos no termo.</p><div data-remote-field hidden>
+                    <?php if ($entityContacts['available']): ?>
+                        <div class="as-document-options" role="radiogroup" aria-label="Destino do link">
+                            <label class="as-document-choice">
+                                <input type="radio" name="signer_email_mode" value="entity" <?= $entityContacts['emails'] !== [] ? 'checked' : 'disabled' ?>>
+                                <span class="as-document-choice-icon"><i class="ti ti-address-book" aria-hidden="true"></i></span>
+                                <span class="as-document-choice-copy"><strong>Contato da entidade</strong><small><?= $entityContacts['emails'] !== [] ? 'E-mail cadastrado no Tralla' : 'Nenhum e-mail cadastrado' ?></small></span>
+                                <span class="as-document-choice-check" aria-hidden="true"><i class="ti ti-check"></i></span>
+                            </label>
+                            <label class="as-document-choice">
+                                <input type="radio" name="signer_email_mode" value="manual" <?= $entityContacts['emails'] === [] ? 'checked' : '' ?>>
+                                <span class="as-document-choice-icon"><i class="ti ti-pencil" aria-hidden="true"></i></span>
+                                <span class="as-document-choice-copy"><strong>Escrever o e-mail</strong><small>Digitar outro endereço</small></span>
+                                <span class="as-document-choice-check" aria-hidden="true"><i class="ti ti-check"></i></span>
+                            </label>
+                        </div>
+                        <?php if ($entityContacts['missing'] !== []): ?><p class="as-hint">Sem e-mail cadastrado: <?= assignature_h(implode(', ', $entityContacts['missing'])) ?>. Cadastre em Tralla → Configurações → Contatos.</p><?php endif; ?>
+                        <label data-remote-entity>E-mail da entidade<select name="signer_email" disabled><?php if (count($entityContacts['emails']) !== 1): ?><option value="">Selecione o e-mail</option><?php endif; ?><?php foreach ($entityContacts['emails'] as $contactEmail => $contactLabel): ?><option value="<?= assignature_h($contactEmail) ?>"><?= assignature_h($contactLabel) ?></option><?php endforeach; ?></select></label>
+                    <?php endif; ?>
+                    <label data-remote-manual>E-mail de quem vai assinar<input type="email" name="signer_email" maxlength="255" autocomplete="off" placeholder="nome@exemplo.gov.br" disabled></label>
+                </div></div>
                 <div data-step="1" hidden><p class="as-step-label">2 de 5 · Retirante</p><h3>Nome completo de quem retira</h3><label>Nome completo<input name="signer_name" data-uppercase maxlength="255" autocomplete="name" placeholder="NOME E SOBRENOME" required></label></div>
                 <div data-step="2" hidden>
                     <p class="as-step-label">3 de 5 · Identificação</p>

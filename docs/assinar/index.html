@@ -37,6 +37,10 @@
     .send:hover { background: var(--primary-strong); }
     .send:disabled { cursor: progress; opacity: .6; }
     .error { color: var(--danger); font-weight: 600; }
+    .doc-feedback { font-size: 12px; font-weight: 600; margin-top: 4px; }
+    .doc-feedback.is-ok { color: #1b7f3b; }
+    .doc-feedback.is-bad { color: var(--danger); }
+    input[type=text].is-bad { border-color: var(--danger); }
     .center { padding: 32px 20px; text-align: center; }
     @media (max-width: 480px) { .facts { grid-template-columns: 1fr; } body { padding: 8px; } }
   </style>
@@ -69,7 +73,7 @@
         <label><input type="radio" name="document_type" value="CPF" checked> CPF</label>
         <label><input type="radio" name="document_type" value="RG"> RG</label>
       </div>
-      <label>Número do documento<input type="text" name="document" maxlength="14" inputmode="numeric" autocomplete="off"></label>
+      <label>Número do documento<input type="text" name="document" maxlength="14" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" aria-describedby="doc-feedback"><span class="doc-feedback" id="doc-feedback" aria-live="polite" hidden></span></label>
       <div class="row"><strong style="font-size:13px">Assine com o dedo, mouse ou caneta</strong><button type="button" class="link" id="clear">Limpar</button></div>
       <canvas id="pad" aria-label="Área para desenhar a assinatura"></canvas>
       <label class="check"><input type="checkbox" name="accepted"> <span>Conferi os equipamentos e os dados deste termo.</span></label>
@@ -148,8 +152,70 @@
     byId('content').hidden = false;
   }
 
+  function validCpf(digits) {
+    if (!/^[0-9]{11}$/.test(digits) || /^(.)\1{10}$/.test(digits)) { return false; }
+    for (var length = 9; length <= 10; length++) {
+      var sum = 0;
+      for (var i = 0; i < length; i++) { sum += Number(digits.charAt(i)) * (length + 1 - i); }
+      var digit = (sum * 10) % 11;
+      if ((digit === 10 ? 0 : digit) !== Number(digits.charAt(length))) { return false; }
+    }
+    return true;
+  }
+
+  function maskCpf(digits) {
+    return digits.slice(0, 3)
+      + (digits.length > 3 ? '.' + digits.slice(3, 6) : '')
+      + (digits.length > 6 ? '.' + digits.slice(6, 9) : '')
+      + (digits.length > 9 ? '-' + digits.slice(9, 11) : '');
+  }
+
+  function setupDocument(form) {
+    var input = form.document;
+    var feedback = byId('doc-feedback');
+    function isCpf() { return form.document_type.value === 'CPF'; }
+    function refresh() {
+      var digits = input.value.replace(/[^0-9]/g, '');
+      var complete = isCpf() && digits.length === 11;
+      var ok = complete && validCpf(digits);
+      feedback.hidden = !complete;
+      feedback.textContent = ok ? 'CPF válido.' : 'CPF inválido. Confira os números.';
+      feedback.className = 'doc-feedback ' + (ok ? 'is-ok' : 'is-bad');
+      input.classList.toggle('is-bad', complete && !ok);
+    }
+    input.addEventListener('input', function () {
+      if (isCpf()) {
+        // Mantém o cursor depois do mesmo número ao corrigir no meio do campo.
+        var before = input.value.slice(0, input.selectionStart).replace(/[^0-9]/g, '').length;
+        var masked = maskCpf(input.value.replace(/[^0-9]/g, '').slice(0, 11));
+        var caret = 0;
+        for (var seen = 0; caret < masked.length && seen < before; caret++) {
+          if (/[0-9]/.test(masked.charAt(caret))) { seen++; }
+        }
+        input.value = masked;
+        input.setSelectionRange(caret, caret);
+      } else {
+        input.value = input.value.toUpperCase().replace(/[^0-9X]/g, '');
+      }
+      refresh();
+    });
+    form.querySelectorAll('[name="document_type"]').forEach(function (radio) {
+      radio.addEventListener('change', function () {
+        input.value = '';
+        input.placeholder = isCpf() ? '000.000.000-00' : 'Somente números';
+        input.inputMode = isCpf() ? 'numeric' : 'text';
+        refresh();
+        input.focus();
+      });
+    });
+    return function () {
+      return !isCpf() || validCpf(input.value.replace(/[^0-9]/g, ''));
+    };
+  }
+
   function setupForm() {
     var form = byId('form');
+    var documentOk = setupDocument(form);
     var canvas = byId('pad');
     var error = byId('error');
     var send = byId('send');
@@ -202,6 +268,7 @@
     form.addEventListener('submit', async function (event) {
       event.preventDefault();
       error.hidden = true;
+      if (!documentOk()) { fail('Confira o CPF: os números não formam um CPF válido.'); form.document.focus(); return; }
       if (!signed) { fail('Desenhe a assinatura antes de concluir.'); return; }
       if (!form.accepted.checked) { fail('Confirme que conferiu os dados do termo.'); return; }
       send.disabled = true;

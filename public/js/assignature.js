@@ -433,14 +433,32 @@
         error.hidden = true;
         if (index === 4) { initCanvas(); }
     }
+    // Só o campo do destino escolhido fica ativo e é enviado como signer_email.
+    function syncRemoteEmail() {
+        var remote = methodInput.value === 'appscript';
+        var mode = form.querySelector('[name="signer_email_mode"]:checked');
+        var useEntity = !!mode && mode.value === 'entity';
+        var manual = form.querySelector('[data-remote-manual]');
+        var entity = form.querySelector('[data-remote-entity]');
+        form.querySelector('[data-remote-field]').hidden = !remote;
+        manual.hidden = useEntity;
+        manual.querySelector('input').disabled = !remote || useEntity;
+        manual.querySelector('input').required = remote && !useEntity;
+        if (entity) {
+            entity.hidden = !useEntity;
+            entity.querySelector('select').disabled = !remote || !useEntity;
+            entity.querySelector('select').required = remote && useEntity;
+        }
+    }
+    form.querySelectorAll('[name="signer_email_mode"]').forEach(function (field) {
+        field.addEventListener('change', syncRemoteEmail);
+    });
     function choose(method) {
         methodInput.value = method;
         choices.hidden = true;
         flow.hidden = false;
         flow.querySelector('[data-flow-title]').textContent = { digital: 'Assinar agora', paper: 'Assinar depois', appscript: 'Assinar por e-mail' }[method];
-        var remoteField = form.querySelector('[data-remote-field]');
-        remoteField.hidden = method !== 'appscript';
-        remoteField.querySelector('input').required = method === 'appscript';
+        syncRemoteEmail();
         signer.required = method === 'digital';
         documentInput.required = method === 'digital';
         form.querySelectorAll('[name="document_type"]').forEach(function (field) { field.required = method === 'digital'; });

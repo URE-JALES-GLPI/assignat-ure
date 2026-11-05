@@ -63,6 +63,48 @@ class PluginAssignatureRemote
         }
     }
 
+    /**
+     * E-mails cadastrados nas entidades dos pedidos (Contatos do Tralla). A opção só existe
+     * quando todos os pedidos vêm do Tralla: nas demais fontes o e-mail é sempre digitado.
+     *
+     * @return array{available: bool, emails: array<string, string>, missing: string[]}
+     */
+    public static function entityEmails(array $requests): array
+    {
+        $result = ['available' => false, 'emails' => [], 'missing' => []];
+        $sources = [];
+        foreach ($requests as $request) {
+            $source = PluginAssignatureSource::get((int) $request['sources_id']);
+            if ($source === null || (string) $source['adapter'] !== 'tralla') {
+                return $result;
+            }
+            $sources[(int) $request['id']] = $source;
+        }
+        $result['available'] = $requests !== [];
+        $missing = [];
+        foreach ($requests as $request) {
+            try {
+                $detail = PluginAssignatureSource::api($sources[(int) $request['id']], 'GET', ['card' => $request['external_id']]);
+            } catch (Throwable $e) {
+                continue;
+            }
+            $entity = trim((string) ($detail['entity']['name'] ?? ''));
+            $contacts = (array) ($detail['contacts']['email'] ?? []);
+            if ($contacts === []) {
+                $missing[$entity !== '' ? $entity : (string) $request['code']] = true;
+            }
+            foreach ($contacts as $contact) {
+                $email = (string) ($contact['email'] ?? '');
+                $name = trim((string) ($contact['name'] ?? ''));
+                if ($email !== '') {
+                    $result['emails'][$email] = implode(' · ', array_filter([$entity, $name, $email]));
+                }
+            }
+        }
+        $result['missing'] = array_keys($missing);
+        return $result;
+    }
+
     /** O token e o script vão depois do #: o navegador não envia essa parte ao GitHub. */
     private static function signLink(string $token): string
     {
