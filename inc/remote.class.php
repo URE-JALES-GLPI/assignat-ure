@@ -143,8 +143,9 @@ class PluginAssignatureRemote
                     '<p>Você recebeu um termo de entrega de equipamentos para conferir e assinar.</p>'
                     . self::items($term['rows'])
                     . '<p style="margin:24px 0;text-align:center"><a href="' . assignature_h($link) . '" style="background:#f18900;border-radius:6px;color:#ffffff;display:inline-block;font-weight:bold;padding:12px 24px;text-decoration:none">Conferir e assinar</a></p>'
-                    . '<p style="color:#6b778c;font-size:13px">O link vale até ' . assignature_h(date('d/m/Y H:i', $expires)) . ' e só pode ser usado uma vez. Se você não esperava este e-mail, ignore esta mensagem.</p>'),
-                "Termo de entrega #{$batchId} aguardando sua assinatura.\nConferir e assinar: {$link}\nO link vale até " . date('d/m/Y H:i', $expires) . '.');
+                    . '<p style="color:#6b778c;font-size:13px">O link vale até ' . assignature_h(date('d/m/Y H:i', $expires)) . ' e só pode ser usado uma vez. Se você não esperava este e-mail, ignore esta mensagem.</p>'
+                    . '<p style="color:#6b778c;font-size:13px">Se aparecer "Não foi possível abrir o arquivo", copie o link e abra em uma janela anônima do navegador. Isso pode acontecer quando há conta Google conectada. Não é preciso ter conta Google para assinar.</p>'),
+                "Termo de entrega #{$batchId} aguardando sua assinatura.\nConferir e assinar: {$link}\nO link vale até " . date('d/m/Y H:i', $expires) . ".\nSe aparecer \"Não foi possível abrir o arquivo\", abra o link em uma janela anônima do navegador. Não é preciso ter conta Google para assinar.");
             $DB->update(PluginAssignatureBatch::TABLE, [
                 'remote_expires_at' => date('Y-m-d H:i:s', $expires),
                 'remote_term_sha256' => hash('sha256', json_encode($term, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
