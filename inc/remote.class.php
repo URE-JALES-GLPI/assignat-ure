@@ -138,7 +138,7 @@ class PluginAssignatureRemote
                 return;
             }
             $link = self::url() . '?token=' . rawurlencode((string) $batch['remote_token']);
-            self::mail([(string) $batch['signer_email']], [], 'Assinatura do termo de entrega #' . $batchId,
+            self::mail([(string) $batch['signer_email']], [], 'Assinatura do termo de entrega',
                 self::layout('Termo aguardando sua assinatura',
                     '<p>Você recebeu um termo de entrega de equipamentos para conferir e assinar.</p>'
                     . self::items($term['rows'])
@@ -246,7 +246,7 @@ class PluginAssignatureRemote
         $fact = static fn (string $label, string $value): string => '<tr><td style="color:#6b778c;padding:3px 12px 3px 0;vertical-align:top">'
             . assignature_h($label) . '</td><td style="padding:3px 0">' . assignature_h($value) . '</td></tr>';
         self::mail([(string) $batch['signer_email']], array_values(array_filter($cc)),
-            'Termo de entrega #' . $batchId . ' assinado',
+            'Termo de entrega assinado',
             self::layout('Termo assinado',
                 '<p>O termo de entrega foi assinado. A cópia completa está em anexo, em PDF.</p>'
                 . '<table cellpadding="0" cellspacing="0" style="font-size:14px;margin:12px 0">'
@@ -303,7 +303,7 @@ class PluginAssignatureRemote
         if ($cc !== []) {
             $email->cc(...$cc);
         }
-        $email->subject('[URE] Assignat-ure — ' . $subject);
+        $email->subject('[URE Jales] ' . $subject);
         $email->html($html);
         $email->text($text);
         if ($attachment !== null) {
