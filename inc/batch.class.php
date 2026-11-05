@@ -840,7 +840,8 @@ class PluginAssignatureBatch
 
     public static function printCommand(string $queue, bool $paper, int $pages, string $path): array
     {
-        $command = ['/usr/bin/lp', '-d', $queue, '-n', $paper ? '1' : '2', '-o', 'media=A4'];
+        // 600 dpi é o máximo que o driver da fila oferece; o padrão dela é 300.
+        $command = ['/usr/bin/lp', '-d', $queue, '-n', $paper ? '1' : '2', '-o', 'media=A4', '-o', 'Resolution=600dpi'];
         if ($pages > 1) {
             array_push($command, '-o', 'sides=two-sided-long-edge', '-o', 'Duplex=DuplexNoTumble');
             if ($queue === 'HP_PeB') {

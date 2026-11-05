@@ -36,6 +36,9 @@ if ($singlePaper[4] !== '1' || in_array('sides=two-sided-long-edge', $singlePape
     || $duplexDigital[4] !== '2' || !in_array('sides=two-sided-long-edge', $duplexDigital, true)) {
     throw new RuntimeException('Opções de cópias e frente e verso incorretas.');
 }
+if (!in_array('Resolution=600dpi', $singlePaper, true) || !in_array('Resolution=600dpi', $duplexDigital, true)) {
+    throw new RuntimeException('A impressão deve sair em 600 dpi.');
+}
 echo "Impressão: 1 cópia no papel, 2 no digital, frente e verso em múltiplas páginas: OK\n";
 
 foreach (['https://script.google.com/macros/s/AKfy_c-1/exec', 'https://script.google.com/a/macros/ure.sp.gov.br/s/AKfy/exec'] as $url) {
