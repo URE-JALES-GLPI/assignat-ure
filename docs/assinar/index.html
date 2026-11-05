@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex">
+  <title>Assinatura do termo de entrega</title>
+  <style>
+    :root { --primary: #0079bf; --primary-strong: #026aa7; --soft: #e4f0f6; --text: #172b4d; --muted: #6b778c; --border: #dfe1e6; --danger: #c62828; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { background: #f4f5f7; color: var(--text); font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; padding: 16px; }
+    main { margin: 0 auto; max-width: 720px; }
+    .box { background: #fff; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; padding: 20px; }
+    .eyebrow { color: var(--primary); font-size: 11px; font-weight: 800; letter-spacing: .05em; margin: 0 0 4px; }
+    h1 { font-size: 20px; margin: 0 0 4px; }
+    h2 { font-size: 15px; margin: 0 0 12px; }
+    p { margin: 0 0 12px; }
+    .muted { color: var(--muted); font-size: 13px; }
+    .facts { display: grid; gap: 8px 16px; grid-template-columns: 1fr 1fr; }
+    .facts small { color: var(--muted); display: block; font-size: 11px; font-weight: 700; }
+    .item { border-top: 1px solid var(--border); padding: 10px 0; }
+    .item strong { display: block; }
+    .item span { color: var(--muted); font-size: 12px; }
+    .item p { font-size: 13px; margin: 4px 0 0; white-space: pre-line; }
+    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 12px; }
+    input[type=text] { border: 1px solid #c1c7d0; border-radius: 6px; display: block; font: inherit; margin-top: 4px; min-height: 40px; padding: 8px 12px; width: 100%; }
+    input[type=text]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--soft); outline: none; }
+    .types { display: flex; gap: 16px; margin-bottom: 12px; }
+    .types label { font-weight: 400; margin: 0; }
+    canvas { background: #fff; border: 1px dashed #c1c7d0; border-radius: 6px; display: block; height: 180px; touch-action: none; width: 100%; }
+    .row { align-items: center; display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .link { background: none; border: 0; color: var(--primary-strong); cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
+    .check { display: flex; font-weight: 400; gap: 8px; margin: 12px 0; }
+    .send { background: var(--primary); border: 0; border-radius: 6px; color: #fff; cursor: pointer; font: inherit; font-weight: 700; min-height: 44px; width: 100%; }
+    .send:hover { background: var(--primary-strong); }
+    .send:disabled { cursor: progress; opacity: .6; }
+    .error { color: var(--danger); font-weight: 600; }
+    .center { padding: 32px 20px; text-align: center; }
+    @media (max-width: 480px) { .facts { grid-template-columns: 1fr; } body { padding: 8px; } }
+  </style>
+</head>
+<body>
+<main>
+  <section class="box center" id="message">
+    <p class="eyebrow">[URE] ASSIGNAT-URE</p>
+    <h1 id="message-text">Carregando o termo...</h1>
+  </section>
+
+  <div id="content" hidden>
+    <section class="box">
+      <p class="eyebrow">[URE] ASSIGNAT-URE</p>
+      <h1>Termo de entrega de equipamentos</h1>
+      <p class="muted" id="term-info"></p>
+      <p>Eu, <strong id="term-technician"></strong>, técnico(a) responsável, declaro que os equipamentos listados foram disponibilizados ao responsável identificado neste termo, com os resultados e observações registrados no atendimento.</p>
+      <div class="facts">
+        <div><small>Quadro / atendimento</small><span id="term-boards"></span></div>
+        <div><small>Itens neste termo</small><span id="term-count"></span></div>
+      </div>
+    </section>
+    <section class="box" id="items">
+      <h2>Equipamentos entregues</h2>
+    </section>
+    <form class="box" id="form" novalidate>
+      <h2>Assinatura de quem retira</h2>
+      <label>Nome completo<input type="text" name="signer_name" maxlength="255" autocomplete="name" placeholder="NOME E SOBRENOME"></label>
+      <div class="types" role="radiogroup" aria-label="Tipo de documento">
+        <label><input type="radio" name="document_type" value="CPF" checked> CPF</label>
+        <label><input type="radio" name="document_type" value="RG"> RG</label>
+      </div>
+      <label>Número do documento<input type="text" name="document" maxlength="14" inputmode="numeric" autocomplete="off"></label>
+      <div class="row"><strong style="font-size:13px">Assine com o dedo, mouse ou caneta</strong><button type="button" class="link" id="clear">Limpar</button></div>
+      <canvas id="pad" aria-label="Área para desenhar a assinatura"></canvas>
+      <label class="check"><input type="checkbox" name="accepted"> <span>Conferi os equipamentos e os dados deste termo.</span></label>
+      <p class="error" id="error" hidden></p>
+      <button class="send" id="send" type="submit">Assinar termo</button>
+    </form>
+  </div>
+</main>
+<script>
+(function () {
+  // Só o script da URE é aceito: o endereço chega pelo link e aqui fica apenas o SHA-256 dele,
+  // para ninguém usar esta página com um script próprio e colher documentos.
+  var ALLOWED_SCRIPT_SHA256 = '2956429b9234f7769b9fb7f200b69b0b59adbbabc1b0043d212f41a319914363';
+  var INVALID = 'Este link não é válido.';
+
+  var params = new URLSearchParams(window.location.hash.slice(1));
+  var scriptPath = params.get('s') || '';
+  var token = params.get('t') || '';
+  var endpoint = 'https://script.google.com/' + scriptPath + '/exec';
+
+  function byId(id) { return document.getElementById(id); }
+
+  function showMessage(text) {
+    byId('content').hidden = true;
+    byId('message').hidden = false;
+    byId('message-text').textContent = text;
+    window.scrollTo(0, 0);
+  }
+
+  async function sha256(value) {
+    var digest = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
+    return Array.prototype.map.call(new Uint8Array(digest), function (byte) {
+      return byte.toString(16).padStart(2, '0');
+    }).join('');
+  }
+
+  // Sem cookies: é isto que evita o erro do Google com contas conectadas no navegador.
+  async function call(body) {
+    var response = await fetch(endpoint, {
+      method: 'POST',
+      credentials: 'omit',
+      referrerPolicy: 'no-referrer',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body)
+    });
+    var data = await response.json();
+    if (!data || !data.ok) {
+      throw new Error(data && data.error || 'Não foi possível concluir.');
+    }
+    return data;
+  }
+
+  function renderTerm(term) {
+    byId('term-info').textContent = 'Termo #' + term.batch_id + ' · ' + term.date;
+    byId('term-technician').textContent = term.technician;
+    byId('term-boards').textContent = term.boards || 'Não informado';
+    byId('term-count').textContent = term.rows.length + ' equipamento(s)';
+    var items = byId('items');
+    term.rows.forEach(function (row) {
+      var item = document.createElement('div');
+      item.className = 'item';
+      var name = document.createElement('strong');
+      name.textContent = row.name;
+      var info = document.createElement('span');
+      info.textContent = '#' + row.code + ' · ' + row.status;
+      item.appendChild(name);
+      item.appendChild(info);
+      if (row.report) {
+        var report = document.createElement('p');
+        report.textContent = row.report;
+        item.appendChild(report);
+      }
+      items.appendChild(item);
+    });
+    byId('message').hidden = true;
+    byId('content').hidden = false;
+  }
+
+  function setupForm() {
+    var form = byId('form');
+    var canvas = byId('pad');
+    var error = byId('error');
+    var send = byId('send');
+    var width = Math.max(300, Math.round(canvas.getBoundingClientRect().width));
+    var ratio = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
+    canvas.width = Math.round(width * ratio);
+    canvas.height = Math.round(180 * ratio);
+    var ctx = canvas.getContext('2d');
+    ctx.scale(ratio, ratio);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 2.6;
+    ctx.strokeStyle = '#17223b';
+    var drawing = false;
+    var signed = false;
+    function point(event) {
+      var rect = canvas.getBoundingClientRect();
+      return { x: (event.clientX - rect.left) * width / rect.width, y: (event.clientY - rect.top) * 180 / rect.height };
+    }
+    canvas.addEventListener('pointerdown', function (event) {
+      event.preventDefault();
+      canvas.setPointerCapture(event.pointerId);
+      var p = point(event);
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + 0.1, p.y + 0.1);
+      ctx.stroke();
+      drawing = true;
+      signed = true;
+    });
+    canvas.addEventListener('pointermove', function (event) {
+      if (!drawing) { return; }
+      event.preventDefault();
+      var p = point(event);
+      ctx.lineTo(p.x, p.y);
+      ctx.stroke();
+    });
+    canvas.addEventListener('pointerup', function () { drawing = false; });
+    canvas.addEventListener('pointercancel', function () { drawing = false; });
+    byId('clear').addEventListener('click', function () {
+      ctx.clearRect(0, 0, width, 180);
+      signed = false;
+    });
+    function fail(text) {
+      error.textContent = text;
+      error.hidden = false;
+      send.disabled = false;
+      send.textContent = 'Assinar termo';
+    }
+    form.addEventListener('submit', async function (event) {
+      event.preventDefault();
+      error.hidden = true;
+      if (!signed) { fail('Desenhe a assinatura antes de concluir.'); return; }
+      if (!form.accepted.checked) { fail('Confirme que conferiu os dados do termo.'); return; }
+      send.disabled = true;
+      send.textContent = 'Registrando assinatura...';
+      try {
+        await call({
+          action: 'sign',
+          token: token,
+          form: {
+            signer_name: form.signer_name.value,
+            document_type: form.document_type.value,
+            document: form.document.value,
+            signature_png: canvas.toDataURL('image/png'),
+            accepted: form.accepted.checked
+          }
+        });
+        showMessage('Termo assinado. Obrigado!');
+        var note = document.createElement('p');
+        note.className = 'muted';
+        note.textContent = 'Você receberá o termo assinado por e-mail em alguns minutos.';
+        byId('message').appendChild(note);
+      } catch (failure) {
+        fail(failure instanceof TypeError ? 'Sem conexão com o serviço de assinatura. Tente de novo.' : failure.message);
+      }
+    });
+  }
+
+  async function start() {
+    if (!/^[a-f0-9]{48}$/.test(token) || await sha256(scriptPath) !== ALLOWED_SCRIPT_SHA256) {
+      showMessage(INVALID);
+      return;
+    }
+    try {
+      var data = await call({ action: 'term', token: token });
+      if (data.problem) {
+        showMessage(data.problem);
+        return;
+      }
+      renderTerm(data.term);
+      setupForm();
+    } catch (failure) {
+      showMessage('Não foi possível abrir o termo agora. Atualize a página em instantes.');
+    }
+  }
+
+  start();
+}());
+</script>
+</body>
+</html>

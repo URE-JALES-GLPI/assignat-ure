@@ -20,6 +20,17 @@ a cada 5 minutos: o Google nunca precisa acessar o servidor do GLPI.
 Ao alterar o código do script, publique de novo em **Implantar → Gerenciar implantações → Editar →
 Nova versão**, mantendo a mesma URL.
 
+## Página de assinatura
+
+Quem assina usa a página `docs/assinar/index.html`, publicada pelo GitHub Pages. Ela fala com o
+script sem cookies, porque abrir o script direto em `script.google.com` pode dar erro em navegador
+com conta Google conectada.
+
+O token e o endereço do script chegam depois do `#` do link, parte que o navegador não envia ao
+GitHub. A página só aceita o script cujo SHA-256 está em `ALLOWED_SCRIPT_SHA256`, calculado sobre o
+caminho entre `script.google.com/` e `/exec` (por exemplo `macros/s/ID`). Uma **nova implantação**
+muda a URL e exige atualizar esse valor; **nova versão** na mesma implantação não muda nada.
+
 ## Dados e limites
 
 - CPF/RG e assinatura ficam no Drive só até o GLPI buscá-los. Depois o arquivo é zerado e enviado
@@ -27,4 +38,3 @@ Nova versão**, mantendo a mesma URL.
 - O link vale 7 dias e só pode ser usado uma vez.
 - O Apps Script não informa o IP de quem assinou. O comprovante registra e-mail de destino, data,
   hora e o hash do termo. Assinatura desenhada não equivale a certificado ICP-Brasil.
-- O Google mostra uma faixa dizendo que a página foi criada por um usuário do Google.

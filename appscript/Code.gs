@@ -26,6 +26,15 @@ function configurar() {
 function doPost(e) {
   try {
     var body = JSON.parse(e.postData.contents);
+    // Chamadas da página de assinatura: valem só para o pedido do token, sem segredo.
+    if (body.action === 'term') {
+      var state = readState_(String(body.token || ''));
+      return json_(state.problem ? { ok: true, problem: state.problem } : { ok: true, term: state.data.term });
+    }
+    if (body.action === 'sign') {
+      assinar(String(body.token || ''), body.form);
+      return json_({ ok: true });
+    }
     if (!secretOk_(body.secret)) {
       return json_({ ok: false, error: 'Segredo inválido.' });
     }
@@ -60,7 +69,7 @@ function doGet(e) {
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
 }
 
-/** Chamado pela página, via google.script.run. */
+/** Registra a assinatura: usado pela página própria e pelos links antigos, via google.script.run. */
 function assinar(token, form) {
   var lock = LockService.getScriptLock();
   lock.waitLock(15000);
