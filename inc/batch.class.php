@@ -309,6 +309,27 @@ class PluginAssignatureBatch
         return $rows;
     }
 
+    /**
+     * Textos do termo. O Protocolo entrega documentos, não equipamentos; um lote misturado
+     * com outro plugin continua com os textos gerais.
+     */
+    public static function termLabels(array $requests): array
+    {
+        $protocolo = $requests !== [];
+        foreach ($requests as $request) {
+            $protocolo = $protocolo && preg_match('/^(entrada|retirada):/', (string) ($request['external_id'] ?? '')) === 1;
+        }
+        return $protocolo ? [
+            'title' => 'Termo de entrega Protocolo', 'role' => 'funcionário',
+            'noun' => 'itens', 'heading' => 'Itens entregues', 'column' => 'Item / pedido',
+            'unit' => 'item(ns)', 'show_status' => false, 'delivery' => 'Responsável pela entrega',
+        ] : [
+            'title' => 'Termo de entrega de equipamentos', 'role' => 'técnico(a)',
+            'noun' => 'equipamentos', 'heading' => 'Equipamentos entregues', 'column' => 'Equipamento / pedido',
+            'unit' => 'equipamento(s)', 'show_status' => true, 'delivery' => 'Responsável pela entrega (técnico)',
+        ];
+    }
+
     public static function termContext(array $requests): array
     {
         $sources = [];
@@ -594,11 +615,12 @@ class PluginAssignatureBatch
         }
         $rows = self::termRows($requests);
         $context = self::termContext($requests);
+        $labels = self::termLabels($requests);
         $paper = (string) $batch['method'] === 'paper';
         $batchId = (int) $batch['id'];
         $pdf = new TCPDF('P', 'mm', 'A4', true, 'UTF-8', false);
         $pdf->SetCreator('Assignat-ure');
-        $pdf->SetTitle('Termo de entrega de equipamentos #' . $batchId);
+        $pdf->SetTitle($labels['title'] . ' #' . $batchId);
         $pdf->setPrintHeader(false);
         $pdf->setPrintFooter(false);
         $pdf->SetMargins(17, 17, 17);
@@ -628,7 +650,7 @@ class PluginAssignatureBatch
         $pdf->SetTextColor(17, 102, 178);
         $pdf->SetFont('dejavusans', 'B', 15);
         $pdf->SetX(40);
-        $pdf->Cell(153, 8, 'Termo de entrega de equipamentos', 0, 1, 'R');
+        $pdf->Cell(153, 8, $labels['title'], 0, 1, 'R');
         $pdf->SetTextColor(83, 96, 116);
         $pdf->SetFont('dejavusans', '', 8);
         $pdf->SetX(40);
@@ -639,12 +661,12 @@ class PluginAssignatureBatch
         $pdf->SetY(44);
         $pdf->SetTextColor(28, 51, 82);
         $pdf->SetFont('dejavusans', '', 9);
-        $intro = 'Este termo registra a entrega dos equipamentos abaixo após os procedimentos informados pelos plugins de origem. '
+        $intro = 'Este termo registra a entrega dos ' . $labels['noun'] . ' abaixo após os procedimentos informados pelos plugins de origem. '
             . 'A pessoa responsável pela retirada deve conferir os itens e as condições registradas antes de assinar.';
         $pdf->writeHTML('<table cellpadding="9" style="background-color:#f3f8fe;border-left:3px solid #1372bd"><tr><td>'
             . assignature_h($intro) . '</td></tr></table>', true, false, true, false, '');
         $pdf->writeHTML('<p>Eu, <b>' . assignature_h(self::technicianName($batch))
-            . '</b>, técnico(a) responsável, declaro que os equipamentos listados foram disponibilizados ao responsável identificado neste termo, '
+            . '</b>, ' . assignature_h($labels['role']) . ' responsável, declaro que os ' . assignature_h($labels['noun']) . ' listados foram disponibilizados ao responsável identificado neste termo, '
             . 'com os resultados e observações registrados no atendimento.</p>', true, false, true, false, '');
         $recipient = $paper ? '________________________________' : (string) $batch['signer_name'];
         $facts = [
@@ -652,7 +674,7 @@ class PluginAssignatureBatch
             ['TÉCNICO RESPONSÁVEL', self::technicianName($batch) . ' — ' . (string) ($batch['technician_document_type'] ?? '') . ' ' . self::technicianDocument($batch),
                 'RESPONSÁVEL PELA RETIRADA', $recipient],
             ['QUADRO / ATENDIMENTO', $context['boards'] ?: 'Não informado',
-                'ITENS NESTE TERMO', count($rows) . ' equipamento(s) · ' . count($requests) . ' pedido(s)'],
+                'ITENS NESTE TERMO', count($rows) . ' ' . $labels['unit'] . ' · ' . count($requests) . ' pedido(s)'],
         ];
         $html = '<table cellpadding="7" cellspacing="4" width="100%">';
         foreach ($facts as $fact) {
@@ -664,7 +686,7 @@ class PluginAssignatureBatch
         $pdf->writeHTML($html . '</table><br>', true, false, true, false, '');
         $pdf->SetTextColor(17, 102, 178);
         $pdf->SetFont('dejavusans', 'B', 9);
-        $pdf->Cell(0, 7, 'EQUIPAMENTOS ENTREGUES', 0, 1);
+        $pdf->Cell(0, 7, mb_strtoupper($labels['heading'], 'UTF-8'), 0, 1);
         $pdf->SetTextColor(28, 51, 82);
         $pdf->SetFont('dejavusans', '', 8.5);
         $border = 'border-bottom:1px solid #dce5ef';
@@ -673,19 +695,21 @@ class PluginAssignatureBatch
                 $pdf->AddPage();
                 $pdf->SetTextColor(17, 102, 178);
                 $pdf->SetFont('dejavusans', 'B', 9);
-                $pdf->Cell(0, 7, 'EQUIPAMENTOS ENTREGUES (CONTINUAÇÃO)', 0, 1);
+                $pdf->Cell(0, 7, mb_strtoupper($labels['heading'], 'UTF-8') . ' (CONTINUAÇÃO)', 0, 1);
                 $pdf->SetTextColor(28, 51, 82);
                 $pdf->SetFont('dejavusans', '', 8.5);
             }
             $html = '<table cellpadding="8" width="100%" style="font-size:8.5px">'
                 . '<thead><tr style="background-color:#eaf3fc;color:#1b4c7e"><th width="6%" style="' . $border . '"><b>#</b></th>'
-                . '<th width="27%" style="' . $border . '"><b>EQUIPAMENTO / PEDIDO</b></th>'
-                . '<th width="17%" style="' . $border . '"><b>STATUS FINAL</b></th><th width="50%" style="' . $border . '"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
+                . '<th width="' . ($labels['show_status'] ? 27 : 44) . '%" style="' . $border . '"><b>' . assignature_h(mb_strtoupper($labels['column'], 'UTF-8')) . '</b></th>'
+                . ($labels['show_status'] ? '<th width="17%" style="' . $border . '"><b>STATUS FINAL</b></th>' : '')
+                . '<th width="50%" style="' . $border . '"><b>SERVIÇO / OBSERVAÇÕES</b></th></tr></thead><tbody>';
             foreach ($chunk as $offset => $row) {
                 $html .= '<tr><td style="' . $border . '">' . ($chunkIndex * 12 + $offset + 1)
                     . '</td><td style="' . $border . '"><b>' . assignature_h($row['name'])
-                    . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td><td style="' . $border . '"><b>'
-                    . assignature_h($row['status']) . '</b></td><td style="' . $border . '">'
+                    . '</b><br><span style="color:#6d7f96">#' . assignature_h($row['code']) . '</span></td>'
+                    . ($labels['show_status'] ? '<td style="' . $border . '"><b>' . assignature_h($row['status']) . '</b></td>' : '')
+                    . '<td style="' . $border . '">'
                     . assignature_h($row['report'] !== '' ? $row['report'] : '—') . '</td></tr>';
             }
             $pdf->writeHTML($html . '</tbody></table>', true, false, true, false, '');
@@ -726,7 +750,7 @@ class PluginAssignatureBatch
         $pdf->SetTextColor(28, 51, 82);
         $pdf->SetFont('dejavusans', 'B', 8);
         $pdf->SetXY(22, $y + 24);
-        $pdf->Cell(75, 5, 'Responsável pela entrega (técnico)', 0, 0);
+        $pdf->Cell(75, 5, $labels['delivery'], 0, 0);
         $pdf->SetXY(113, $y + 24);
         $pdf->Cell(75, 5, 'Responsável pelo recebimento', 0, 0);
         $pdf->SetFont('dejavusans', '', 7);

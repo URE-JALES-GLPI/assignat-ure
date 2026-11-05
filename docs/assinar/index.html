@@ -55,16 +55,16 @@
   <div id="content" hidden>
     <section class="box">
       <p class="eyebrow">[URE] ASSIGNAT-URE</p>
-      <h1>Termo de entrega de equipamentos</h1>
+      <h1 id="term-title">Termo de entrega de equipamentos</h1>
       <p class="muted" id="term-info"></p>
-      <p>Eu, <strong id="term-technician"></strong>, técnico(a) responsável, declaro que os equipamentos listados foram disponibilizados ao responsável identificado neste termo, com os resultados e observações registrados no atendimento.</p>
+      <p>Eu, <strong id="term-technician"></strong>, <span id="term-role">técnico(a)</span> responsável, declaro que os <span id="term-noun">equipamentos</span> listados foram disponibilizados ao responsável identificado neste termo, com os resultados e observações registrados no atendimento.</p>
       <div class="facts">
         <div><small>Quadro / atendimento</small><span id="term-boards"></span></div>
         <div><small>Itens neste termo</small><span id="term-count"></span></div>
       </div>
     </section>
     <section class="box" id="items">
-      <h2>Equipamentos entregues</h2>
+      <h2 id="term-heading">Equipamentos entregues</h2>
     </section>
     <form class="box" id="form" novalidate>
       <h2>Assinatura de quem retira</h2>
@@ -76,7 +76,7 @@
       <label>Número do documento<input type="text" name="document" maxlength="14" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" aria-describedby="doc-feedback"><span class="doc-feedback" id="doc-feedback" aria-live="polite" hidden></span></label>
       <div class="row"><strong style="font-size:13px">Assine com o dedo, mouse ou caneta</strong><button type="button" class="link" id="clear">Limpar</button></div>
       <canvas id="pad" aria-label="Área para desenhar a assinatura"></canvas>
-      <label class="check"><input type="checkbox" name="accepted"> <span>Conferi os equipamentos e os dados deste termo.</span></label>
+      <label class="check"><input type="checkbox" name="accepted"> <span>Conferi os <span id="term-noun-check">equipamentos</span> e os dados deste termo.</span></label>
       <p class="error" id="error" hidden></p>
       <button class="send" id="send" type="submit">Assinar termo</button>
     </form>
@@ -130,7 +130,17 @@
     byId('term-info').textContent = 'Termo #' + term.batch_id + ' · ' + term.date;
     byId('term-technician').textContent = term.technician;
     byId('term-boards').textContent = term.boards || 'Não informado';
-    byId('term-count').textContent = term.rows.length + ' equipamento(s)';
+    // Termo enviado antes destes textos existirem continua com os textos gerais.
+    var labels = term.labels || {};
+    if (labels.title) {
+      byId('term-title').textContent = labels.title;
+      document.title = labels.title;
+      byId('term-role').textContent = labels.role;
+      byId('term-noun').textContent = labels.noun;
+      byId('term-noun-check').textContent = labels.noun;
+      byId('term-heading').textContent = labels.heading;
+    }
+    byId('term-count').textContent = term.rows.length + ' ' + (labels.unit || 'equipamento(s)');
     var items = byId('items');
     term.rows.forEach(function (row) {
       var item = document.createElement('div');
@@ -138,7 +148,7 @@
       var name = document.createElement('strong');
       name.textContent = row.name;
       var info = document.createElement('span');
-      info.textContent = '#' + row.code + ' · ' + row.status;
+      info.textContent = '#' + row.code + (labels.show_status === false ? '' : ' · ' + row.status);
       item.appendChild(name);
       item.appendChild(info);
       if (row.report) {

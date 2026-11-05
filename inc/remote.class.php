@@ -164,6 +164,7 @@ class PluginAssignatureRemote
             'technician' => PluginAssignatureBatch::technicianName($batch),
             'sources' => (string) $context['sources'],
             'boards' => (string) $context['boards'],
+            'labels' => PluginAssignatureBatch::termLabels($requests),
             'rows' => array_map(static fn (array $row): array => [
                 'code' => (string) $row['code'], 'name' => (string) $row['name'],
                 'status' => (string) $row['status'], 'report' => (string) $row['report'],
@@ -191,8 +192,8 @@ class PluginAssignatureRemote
             $link = self::signLink((string) $batch['remote_token']);
             self::mail([(string) $batch['signer_email']], [], 'Assinatura do termo de entrega',
                 self::layout('Termo aguardando sua assinatura',
-                    '<p>Você recebeu um termo de entrega de equipamentos para conferir e assinar.</p>'
-                    . self::items($term['rows'])
+                    '<p>Você recebeu um termo de entrega de ' . assignature_h($term['labels']['noun']) . ' para conferir e assinar.</p>'
+                    . self::items($term['rows'], $term['labels'])
                     . '<p style="margin:24px 0;text-align:center"><a href="' . assignature_h($link) . '" style="background:#f18900;border-radius:6px;color:#ffffff;display:inline-block;font-weight:bold;padding:12px 24px;text-decoration:none">Conferir e assinar</a></p>'
                     . '<p style="color:#6b778c;font-size:13px">O link vale até ' . assignature_h(date('d/m/Y H:i', $expires)) . ' e só pode ser usado uma vez. Se você não esperava este e-mail, ignore esta mensagem.</p>'),
                 "Termo de entrega #{$batchId} aguardando sua assinatura.\nConferir e assinar: {$link}\nO link vale até " . date('d/m/Y H:i', $expires) . '.');
@@ -307,7 +308,7 @@ class PluginAssignatureRemote
                 . $fact('Data e hora:', $signedAt)
                 . $fact('Técnico:', PluginAssignatureBatch::technicianName($batch))
                 . '</table>'
-                . self::items(PluginAssignatureBatch::termRows($requests))
+                . self::items(PluginAssignatureBatch::termRows($requests), PluginAssignatureBatch::termLabels($requests))
                 . '<p style="margin:16px 0 4px"><strong>Assinatura</strong></p>'
                 . '<img src="cid:assinatura" alt="Assinatura" width="320" style="border:1px solid #dfe1e6;border-radius:6px;display:block;max-width:100%">'
                 . '<p style="color:#6b778c;font-size:12px;overflow-wrap:anywhere">Código de verificação do termo (SHA-256): ' . assignature_h($hash) . '</p>'),
@@ -319,9 +320,9 @@ class PluginAssignatureRemote
         ], ['id' => $batchId]);
     }
 
-    private static function items(array $rows): string
+    private static function items(array $rows, array $labels): string
     {
-        $html = '<p style="margin:16px 0 4px"><strong>Equipamentos</strong></p><ul style="margin:0;padding-left:20px">';
+        $html = '<p style="margin:16px 0 4px"><strong>' . assignature_h(ucfirst($labels['noun'])) . '</strong></p><ul style="margin:0;padding-left:20px">';
         foreach ($rows as $row) {
             $html .= '<li>' . assignature_h($row['name']) . ' <span style="color:#6b778c">#' . assignature_h($row['code']) . '</span></li>';
         }
