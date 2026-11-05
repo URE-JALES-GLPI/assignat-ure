@@ -194,7 +194,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
         <?php if ((string) $batch['status'] === 'awaiting_remote'): ?>
             <section class="as-panel as-upload-panel as-print-hide">
                 <h2>Aguardando assinatura por e-mail</h2>
-                <p class="as-hint">Link enviado para <strong><?= assignature_h($batch['signer_email']) ?></strong>, válido até <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['remote_expires_at'], true)) ?>. O sistema verifica as assinaturas a cada 5 minutos e conclui o termo sozinho. Sem assinatura até essa data, os pedidos voltam para a lista.</p>
+                <p class="as-hint">Link enviado para <strong><?= assignature_h($batch['signer_email']) ?></strong>, válido até <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['remote_expires_at'], true)) ?>. O sistema verifica as assinaturas a cada minuto e conclui o termo sozinho. Sem assinatura até essa data, os pedidos voltam para a lista.</p>
                 <?php if ((string) ($batch['remote_error'] ?? '') !== ''): ?><p class="as-form-error"><?= assignature_h($batch['remote_error']) ?></p><?php endif; ?>
                 <div class="as-inline-actions">
                     <form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="remote_check"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-button" type="submit"><i class="ti ti-refresh"></i> Verificar agora</button></form>
