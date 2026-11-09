@@ -89,6 +89,29 @@ class PluginAssignatureBatch
         throw new RuntimeException('Escolha CPF ou RG e informe um documento válido.');
     }
 
+    /**
+     * Documento para exibir em termos e relatórios: só os 3 primeiros dígitos ficam
+     * visíveis (ex.: 494.***.***-**). O número completo continua guardado criptografado.
+     */
+    public static function maskDocument(string $value): string
+    {
+        $value = trim($value);
+        if ($value === '') {
+            return '';
+        }
+        $seen = 0;
+        $masked = '';
+        foreach (preg_split('//u', $value, -1, PREG_SPLIT_NO_EMPTY) as $char) {
+            if (preg_match('/[0-9A-Za-z]/', $char)) {
+                $masked .= $seen < 3 ? $char : '*';
+                $seen++;
+            } else {
+                $masked .= $char;
+            }
+        }
+        return $masked;
+    }
+
     public static function decryptedDocument(array $batch): string
     {
         $encrypted = (string) ($batch['document_encrypted'] ?? '');
@@ -671,7 +694,7 @@ class PluginAssignatureBatch
         $recipient = $paper ? '________________________________' : (string) $batch['signer_name'];
         $facts = [
             ['DATA DA ENTREGA', self::formatDate((string) $batch['created_at']), 'PLUGIN(S) DE ORIGEM', $context['sources'] ?: '—'],
-            ['TÉCNICO RESPONSÁVEL', self::technicianName($batch) . ' — ' . (string) ($batch['technician_document_type'] ?? '') . ' ' . self::technicianDocument($batch),
+            ['TÉCNICO RESPONSÁVEL', self::technicianName($batch),
                 'RESPONSÁVEL PELA RETIRADA', $recipient],
             ['QUADRO / ATENDIMENTO', $context['boards'] ?: 'Não informado',
                 'ITENS NESTE TERMO', count($rows) . ' ' . $labels['unit'] . ' · ' . count($requests) . ' pedido(s)'],
@@ -756,11 +779,11 @@ class PluginAssignatureBatch
         $pdf->SetFont('dejavusans', '', 7);
         $pdf->SetXY(22, $y + 31);
         $pdf->MultiCell(75, 4, 'Nome: ' . self::technicianName($batch) . "\nDocumento: "
-            . (string) ($batch['technician_document_type'] ?? '') . ' ' . self::technicianDocument($batch), 0, 'L');
+            . (string) ($batch['technician_document_type'] ?? '') . ' ' . self::maskDocument(self::technicianDocument($batch)), 0, 'L');
         $pdf->SetXY(113, $y + 31);
         $pdf->MultiCell(75, 4, 'Nome: ' . ($paper ? '____________________________' : (string) $batch['signer_name'])
             . "\nDocumento: " . ($paper ? '____________________________' : (string) $batch['document_type'] . ' '
-                . self::decryptedDocument($batch)), 0, 'L');
+                . self::maskDocument(self::decryptedDocument($batch))), 0, 'L');
         if (!$paper) {
             $pdf->SetXY(113, $y + 47);
             $pdf->Cell(75, 4, 'Assinado em ' . self::formatDate((string) $batch['completed_at'], true), 0, 0);
