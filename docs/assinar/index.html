@@ -7,42 +7,71 @@
   <meta name="robots" content="noindex">
   <title>Assinatura do termo de entrega</title>
   <style>
-    :root { --primary: #0079bf; --primary-strong: #026aa7; --soft: #e4f0f6; --text: #172b4d; --muted: #6b778c; --border: #dfe1e6; --danger: #c62828; }
+    :root { --primary: #0079bf; --primary-strong: #026aa7; --soft: #e4f0f6; --text: #172b4d; --muted: #6b778c; --border: #dfe1e6; --danger: #c62828; --danger-soft: #fdecea; --ok: #1b7f3b; --ok-soft: #e3f4e5; }
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
-    body { background: #f4f5f7; color: var(--text); font: 14px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; padding: 16px; }
+    body { background: #f4f5f7; color: var(--text); font: 15px/1.5 -apple-system, "Segoe UI", Roboto, Arial, sans-serif; margin: 0; padding: 16px; }
     main { margin: 0 auto; max-width: 720px; }
-    .box { background: #fff; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 16px; padding: 20px; }
+    .box { background: #fff; border: 1px solid var(--border); border-radius: 12px; margin-bottom: 16px; padding: 20px; }
     .eyebrow { color: var(--primary); font-size: 11px; font-weight: 800; letter-spacing: .05em; margin: 0 0 4px; }
-    h1 { font-size: 20px; margin: 0 0 4px; }
-    h2 { font-size: 15px; margin: 0 0 12px; }
+    h1 { font-size: 21px; margin: 0 0 4px; }
+    h2 { align-items: center; display: flex; font-size: 16px; gap: 10px; margin: 0 0 16px; }
+    h2 .num { align-items: center; background: var(--primary); border-radius: 50%; color: #fff; display: inline-flex; flex: none; font-size: 13px; height: 26px; justify-content: center; width: 26px; }
     p { margin: 0 0 12px; }
     .muted { color: var(--muted); font-size: 13px; }
     .facts { display: grid; gap: 8px 16px; grid-template-columns: 1fr 1fr; }
-    .facts small { color: var(--muted); display: block; font-size: 11px; font-weight: 700; }
-    .item { border-top: 1px solid var(--border); padding: 10px 0; }
+    .facts small { color: var(--muted); display: block; font-size: 11px; font-weight: 700; text-transform: uppercase; }
+    .item { border-top: 1px solid var(--border); padding: 12px 0; }
+    .item-head { align-items: flex-start; display: flex; gap: 8px; justify-content: space-between; }
     .item strong { display: block; }
-    .item span { color: var(--muted); font-size: 12px; }
-    .item p { font-size: 13px; margin: 4px 0 0; white-space: pre-line; }
-    label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 12px; }
-    input[type=text] { border: 1px solid #c1c7d0; border-radius: 6px; display: block; font: inherit; margin-top: 4px; min-height: 40px; padding: 8px 12px; width: 100%; }
+    .item .code { color: var(--muted); font-size: 12px; }
+    .item p { background: #f7f8fa; border-radius: 6px; font-size: 13px; margin: 6px 0 0; padding: 6px 10px; white-space: pre-line; }
+    .pill { background: var(--soft); border-radius: 999px; color: var(--primary-strong); flex: none; font-size: 11px; font-weight: 800; padding: 2px 10px; }
+    .pill.is-done { background: var(--ok-soft); color: var(--ok); }
+    .pill.is-bad { background: var(--danger-soft); color: var(--danger); }
+    .field { margin-bottom: 18px; }
+    .field > label, .label { display: block; font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+    input[type=text] { background: #fff; border: 1px solid #c1c7d0; border-radius: 8px; color: var(--text); display: block; font: inherit; font-size: 17px; letter-spacing: .02em; min-height: 48px; padding: 10px 14px; width: 100%; }
+    input[type=text]::placeholder { color: #a5adba; letter-spacing: normal; }
     input[type=text]:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--soft); outline: none; }
-    .types { display: flex; gap: 16px; margin-bottom: 12px; }
-    .types label { font-weight: 400; margin: 0; }
-    canvas { background: #fff; border: 1px dashed #c1c7d0; border-radius: 6px; display: block; height: 180px; touch-action: none; width: 100%; }
-    .row { align-items: center; display: flex; justify-content: space-between; margin-bottom: 4px; }
-    .link { background: none; border: 0; color: var(--primary-strong); cursor: pointer; font: inherit; font-size: 13px; padding: 0; }
-    .check { display: flex; font-weight: 400; gap: 8px; margin: 12px 0; }
-    .send { background: var(--primary); border: 0; border-radius: 6px; color: #fff; cursor: pointer; font: inherit; font-weight: 700; min-height: 44px; width: 100%; }
+    input[type=text].is-bad { border-color: var(--danger); box-shadow: 0 0 0 3px var(--danger-soft); }
+    input[type=text].is-ok { border-color: var(--ok); }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+    .feedback { align-items: center; display: flex; font-size: 13px; font-weight: 600; gap: 6px; margin-top: 6px; }
+    .feedback.is-ok { color: var(--ok); }
+    .feedback.is-bad { color: var(--danger); }
+    .types { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+    .type { cursor: pointer; display: block; position: relative; }
+    .type input { opacity: 0; pointer-events: none; position: absolute; }
+    .type-card { align-items: center; background: #fff; border: 2px solid var(--border); border-radius: 10px; display: flex; gap: 12px; min-height: 64px; padding: 10px 14px; transition: border-color .12s, background .12s; }
+    .type b { align-items: center; background: #f4f5f7; border-radius: 8px; color: var(--muted); display: inline-flex; flex: none; font-size: 13px; height: 38px; justify-content: center; width: 46px; }
+    .type small { color: var(--muted); display: block; font-size: 12px; font-weight: 400; line-height: 1.3; }
+    .type em { display: block; font-style: normal; font-weight: 700; }
+    .type input:checked + .type-card { background: #f3f9fd; border-color: var(--primary); }
+    .type input:checked + .type-card b { background: var(--primary); color: #fff; }
+    .type input:focus-visible + .type-card { box-shadow: 0 0 0 3px var(--soft); }
+    .pad-wrap { position: relative; }
+    canvas { background: #fff; border: 2px dashed #c1c7d0; border-radius: 10px; display: block; height: 200px; touch-action: none; width: 100%; }
+    canvas.is-bad { border-color: var(--danger); }
+    .pad-guide { border-top: 1px solid #c1c7d0; bottom: 46px; left: 24px; pointer-events: none; position: absolute; right: 24px; }
+    .pad-placeholder { color: #a5adba; left: 0; pointer-events: none; position: absolute; right: 0; text-align: center; top: 70px; }
+    .row { align-items: center; display: flex; justify-content: space-between; margin-bottom: 6px; }
+    .link { background: none; border: 1px solid var(--border); border-radius: 6px; color: var(--primary-strong); cursor: pointer; font: inherit; font-size: 13px; font-weight: 600; padding: 4px 12px; }
+    .link:hover { background: var(--soft); }
+    .check { align-items: flex-start; background: #f7f8fa; border-radius: 8px; cursor: pointer; display: flex; font-size: 14px; gap: 10px; margin: 18px 0 14px; padding: 12px 14px; }
+    .check input { flex: none; height: 20px; margin: 1px 0 0; width: 20px; }
+    .send { background: var(--primary); border: 0; border-radius: 8px; color: #fff; cursor: pointer; font: inherit; font-size: 16px; font-weight: 700; min-height: 52px; width: 100%; }
     .send:hover { background: var(--primary-strong); }
     .send:disabled { cursor: progress; opacity: .6; }
-    .error { color: var(--danger); font-weight: 600; }
-    .doc-feedback { font-size: 12px; font-weight: 600; margin-top: 4px; }
-    .doc-feedback.is-ok { color: #1b7f3b; }
-    .doc-feedback.is-bad { color: var(--danger); }
-    input[type=text].is-bad { border-color: var(--danger); }
+    .error { background: var(--danger-soft); border-radius: 8px; color: var(--danger); font-weight: 600; padding: 10px 14px; }
     .center { padding: 32px 20px; text-align: center; }
-    @media (max-width: 480px) { .facts { grid-template-columns: 1fr; } body { padding: 8px; } }
+    .privacy { color: var(--muted); font-size: 12px; margin: 10px 0 0; text-align: center; }
+    @media (max-width: 480px) {
+      .facts { grid-template-columns: 1fr; }
+      body { padding: 8px; }
+      .box { padding: 16px; }
+      .type-card { flex-direction: column; gap: 6px; text-align: center; }
+    }
   </style>
 </head>
 <body>
@@ -59,7 +88,6 @@
       <p class="muted" id="term-info"></p>
       <p>Eu, <strong id="term-technician"></strong>, <span id="term-role">técnico(a)</span> responsável, declaro que os <span id="term-noun">equipamentos</span> listados foram disponibilizados ao responsável identificado neste termo, com os resultados e observações registrados no atendimento.</p>
       <div class="facts">
-        <div><small>Quadro / atendimento</small><span id="term-boards"></span></div>
         <div><small>Itens neste termo</small><span id="term-count"></span></div>
       </div>
     </section>
@@ -67,18 +95,37 @@
       <h2 id="term-heading">Equipamentos entregues</h2>
     </section>
     <form class="box" id="form" novalidate>
-      <h2>Assinatura de quem retira</h2>
-      <label>Nome completo<input type="text" name="signer_name" maxlength="255" autocomplete="name" placeholder="NOME E SOBRENOME"></label>
-      <div class="types" role="radiogroup" aria-label="Tipo de documento">
-        <label><input type="radio" name="document_type" value="CPF" checked> CPF</label>
-        <label><input type="radio" name="document_type" value="RG"> RG</label>
+      <h2><span class="num">1</span> Quem está retirando</h2>
+      <div class="field">
+        <label for="signer-name">Nome completo</label>
+        <input type="text" id="signer-name" name="signer_name" maxlength="255" autocomplete="name" autocapitalize="characters" placeholder="NOME E SOBRENOME" aria-describedby="name-feedback">
+        <div class="feedback" id="name-feedback" aria-live="polite" hidden></div>
       </div>
-      <label>Número do documento<input type="text" name="document" maxlength="14" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" aria-describedby="doc-feedback"><span class="doc-feedback" id="doc-feedback" aria-live="polite" hidden></span></label>
-      <div class="row"><strong style="font-size:13px">Assine com o dedo, mouse ou caneta</strong><button type="button" class="link" id="clear">Limpar</button></div>
-      <canvas id="pad" aria-label="Área para desenhar a assinatura"></canvas>
+      <div class="field">
+        <span class="label" id="doc-type-label">Documento</span>
+        <div class="types" role="radiogroup" aria-labelledby="doc-type-label">
+          <label class="type"><input type="radio" name="document_type" value="CPF" checked><span class="type-card"><b>CPF</b><span><em>CPF</em><small>Cadastro de Pessoa Física</small></span></span></label>
+          <label class="type"><input type="radio" name="document_type" value="RG"><span class="type-card"><b>RG</b><span><em>RG</em><small>Registro Geral (identidade)</small></span></span></label>
+        </div>
+      </div>
+      <div class="field">
+        <label for="doc-number" id="doc-label">Número do CPF</label>
+        <input type="text" id="doc-number" name="document" maxlength="14" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" aria-describedby="doc-hint doc-feedback">
+        <div class="hint" id="doc-hint">Digite só os números; os pontos e o traço entram sozinhos.</div>
+        <div class="feedback" id="doc-feedback" aria-live="polite" hidden></div>
+      </div>
+
+      <h2 style="margin-top:8px"><span class="num">2</span> Assinatura</h2>
+      <div class="row"><span class="label" style="margin:0">Assine com o dedo, mouse ou caneta</span><button type="button" class="link" id="clear">Limpar</button></div>
+      <div class="pad-wrap">
+        <canvas id="pad" aria-label="Área para desenhar a assinatura"></canvas>
+        <div class="pad-guide" aria-hidden="true"></div>
+        <div class="pad-placeholder" id="pad-placeholder" aria-hidden="true">Assine aqui</div>
+      </div>
       <label class="check"><input type="checkbox" name="accepted"> <span>Conferi os <span id="term-noun-check">equipamentos</span> e os dados deste termo.</span></label>
-      <p class="error" id="error" hidden></p>
+      <p class="error" id="error" role="alert" hidden></p>
       <button class="send" id="send" type="submit">Assinar termo</button>
+      <p class="privacy">O documento é usado só neste termo e aparece mascarado no PDF (ex.: 123.***.***-**).</p>
     </form>
   </div>
 </main>
@@ -126,10 +173,14 @@
     return data;
   }
 
+  function statusTone(status) {
+    var value = String(status || '').toLowerCase();
+    return value.indexOf('conclu') >= 0 ? ' is-done' : (value.indexOf('inserv') >= 0 ? ' is-bad' : '');
+  }
+
   function renderTerm(term) {
     byId('term-info').textContent = 'Termo #' + term.batch_id + ' · ' + term.date;
     byId('term-technician').textContent = term.technician;
-    byId('term-boards').textContent = term.boards || 'Não informado';
     // Termo enviado antes destes textos existirem continua com os textos gerais.
     var labels = term.labels || {};
     if (labels.title) {
@@ -145,12 +196,24 @@
     term.rows.forEach(function (row) {
       var item = document.createElement('div');
       item.className = 'item';
+      var head = document.createElement('div');
+      head.className = 'item-head';
+      var title = document.createElement('div');
       var name = document.createElement('strong');
       name.textContent = row.name;
-      var info = document.createElement('span');
-      info.textContent = '#' + row.code + (labels.show_status === false ? '' : ' · ' + row.status);
-      item.appendChild(name);
-      item.appendChild(info);
+      var code = document.createElement('span');
+      code.className = 'code';
+      code.textContent = '#' + row.code;
+      title.appendChild(name);
+      title.appendChild(code);
+      head.appendChild(title);
+      if (labels.show_status !== false && row.status) {
+        var pill = document.createElement('span');
+        pill.className = 'pill' + statusTone(row.status);
+        pill.textContent = row.status;
+        head.appendChild(pill);
+      }
+      item.appendChild(head);
       if (row.report) {
         var report = document.createElement('p');
         report.textContent = row.report;
@@ -180,59 +243,122 @@
       + (digits.length > 9 ? '-' + digits.slice(9, 11) : '');
   }
 
+  // RG: de 7 a 10 caracteres, só o último pode ser X (dígito verificador). Mesmo formato do termo.
+  function cleanRg(value) {
+    var raw = String(value).toUpperCase().replace(/[^0-9X]/g, '');
+    var body = raw.replace(/X/g, '');
+    var last = raw.charAt(raw.length - 1) === 'X' ? 'X' : '';
+    return (last ? body.slice(0, 9) + last : body.slice(0, 10));
+  }
+
+  function validRg(raw) { return /^[0-9]{7,9}[0-9X]?$/.test(raw) && raw.length >= 7; }
+
+  function maskRg(raw) {
+    if (raw.length < 7) { return raw; }
+    var first = raw.length === 10 ? 3 : (raw.length === 9 ? 2 : (raw.length === 8 ? 1 : 0));
+    if (first === 0) { return raw.slice(0, 3) + '.' + raw.slice(3, 6) + '-' + raw.slice(6); }
+    return raw.slice(0, first) + '.' + raw.slice(first, first + 3) + '.' + raw.slice(first + 3, first + 6) + '-' + raw.slice(-1);
+  }
+
+  function setFeedback(element, input, state, text) {
+    element.hidden = state === '';
+    element.className = 'feedback' + (state ? ' is-' + state : '');
+    element.textContent = state === 'ok' ? '✓ ' + text : (state === 'bad' ? '! ' + text : '');
+    input.classList.toggle('is-bad', state === 'bad');
+    input.classList.toggle('is-ok', state === 'ok');
+  }
+
+  function setupName(form) {
+    var input = form.signer_name;
+    var feedback = byId('name-feedback');
+    var touched = false;
+    function words() { return input.value.trim().split(/\s+/).filter(function (part) { return part.length >= 2; }); }
+    function refresh(force) {
+      if (!touched && !force) { return; }
+      var ok = words().length >= 2;
+      setFeedback(feedback, input, ok ? '' : 'bad', 'Escreva o nome e o sobrenome.');
+    }
+    input.addEventListener('input', function () {
+      var start = input.selectionStart;
+      input.value = input.value.toUpperCase();
+      input.setSelectionRange(start, start);
+      if (touched) { refresh(); }
+    });
+    input.addEventListener('blur', function () { if (input.value.trim() !== '') { touched = true; } refresh(); });
+    return function () { touched = true; refresh(true); return words().length >= 2; };
+  }
+
   function setupDocument(form) {
     var input = form.document;
     var feedback = byId('doc-feedback');
     function isCpf() { return form.document_type.value === 'CPF'; }
-    function refresh() {
-      var digits = input.value.replace(/[^0-9]/g, '');
-      var complete = isCpf() && digits.length === 11;
-      var ok = complete && validCpf(digits);
-      feedback.hidden = !complete;
-      feedback.textContent = ok ? 'CPF válido.' : 'CPF inválido. Confira os números.';
-      feedback.className = 'doc-feedback ' + (ok ? 'is-ok' : 'is-bad');
-      input.classList.toggle('is-bad', complete && !ok);
+    function raw() { return isCpf() ? input.value.replace(/[^0-9]/g, '') : cleanRg(input.value); }
+    function refresh(force) {
+      var value = raw();
+      if (isCpf()) {
+        if (value.length < 11 && !force) { setFeedback(feedback, input, '', ''); return; }
+        if (validCpf(value)) { setFeedback(feedback, input, 'ok', 'CPF válido.'); return; }
+        setFeedback(feedback, input, 'bad', value.length < 11
+          ? 'O CPF tem 11 números. Faltam ' + (11 - value.length) + '.'
+          : 'CPF inválido. Confira os números.');
+        return;
+      }
+      if (value.length < 7 && !force) { setFeedback(feedback, input, '', ''); return; }
+      if (validRg(value)) { setFeedback(feedback, input, 'ok', 'RG com ' + value.length + ' caracteres.'); return; }
+      setFeedback(feedback, input, 'bad', 'O RG tem de 7 a 10 caracteres (o último pode ser X).');
+    }
+    function applyType() {
+      var cpf = isCpf();
+      byId('doc-label').textContent = cpf ? 'Número do CPF' : 'Número do RG';
+      byId('doc-hint').textContent = cpf
+        ? 'Digite só os números; os pontos e o traço entram sozinhos.'
+        : 'Digite os números do RG. Se o último dígito for X, digite X.';
+      input.placeholder = cpf ? '000.000.000-00' : '00.000.000-0';
+      input.inputMode = cpf ? 'numeric' : 'text';
+      input.maxLength = cpf ? 14 : 13;
     }
     input.addEventListener('input', function () {
-      if (isCpf()) {
-        // Mantém o cursor depois do mesmo número ao corrigir no meio do campo.
-        var before = input.value.slice(0, input.selectionStart).replace(/[^0-9]/g, '').length;
-        var masked = maskCpf(input.value.replace(/[^0-9]/g, '').slice(0, 11));
-        var caret = 0;
-        for (var seen = 0; caret < masked.length && seen < before; caret++) {
-          if (/[0-9]/.test(masked.charAt(caret))) { seen++; }
-        }
-        input.value = masked;
-        input.setSelectionRange(caret, caret);
-      } else {
-        input.value = input.value.toUpperCase().replace(/[^0-9X]/g, '');
+      // Mantém o cursor depois do mesmo caractere ao corrigir no meio do campo.
+      var keep = /[0-9X]/i;
+      var before = input.value.slice(0, input.selectionStart).replace(/[^0-9X]/gi, '').length;
+      var masked = isCpf() ? maskCpf(input.value.replace(/[^0-9]/g, '').slice(0, 11)) : maskRg(cleanRg(input.value));
+      var caret = 0;
+      for (var seen = 0; caret < masked.length && seen < before; caret++) {
+        if (keep.test(masked.charAt(caret))) { seen++; }
       }
+      input.value = masked;
+      input.setSelectionRange(caret, caret);
       refresh();
     });
+    input.addEventListener('blur', function () { if (input.value !== '') { refresh(true); } });
     form.querySelectorAll('[name="document_type"]').forEach(function (radio) {
       radio.addEventListener('change', function () {
         input.value = '';
-        input.placeholder = isCpf() ? '000.000.000-00' : 'Somente números';
-        input.inputMode = isCpf() ? 'numeric' : 'text';
+        applyType();
         refresh();
         input.focus();
       });
     });
+    applyType();
     return function () {
-      return !isCpf() || validCpf(input.value.replace(/[^0-9]/g, ''));
+      refresh(true);
+      return isCpf() ? validCpf(raw()) : validRg(raw());
     };
   }
 
   function setupForm() {
     var form = byId('form');
+    var nameOk = setupName(form);
     var documentOk = setupDocument(form);
     var canvas = byId('pad');
+    var placeholder = byId('pad-placeholder');
     var error = byId('error');
     var send = byId('send');
+    var height = 200;
     var width = Math.max(300, Math.round(canvas.getBoundingClientRect().width));
     var ratio = Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
     canvas.width = Math.round(width * ratio);
-    canvas.height = Math.round(180 * ratio);
+    canvas.height = Math.round(height * ratio);
     var ctx = canvas.getContext('2d');
     ctx.scale(ratio, ratio);
     ctx.lineCap = 'round';
@@ -243,7 +369,7 @@
     var signed = false;
     function point(event) {
       var rect = canvas.getBoundingClientRect();
-      return { x: (event.clientX - rect.left) * width / rect.width, y: (event.clientY - rect.top) * 180 / rect.height };
+      return { x: (event.clientX - rect.left) * width / rect.width, y: (event.clientY - rect.top) * height / rect.height };
     }
     canvas.addEventListener('pointerdown', function (event) {
       event.preventDefault();
@@ -255,6 +381,8 @@
       ctx.stroke();
       drawing = true;
       signed = true;
+      placeholder.hidden = true;
+      canvas.classList.remove('is-bad');
     });
     canvas.addEventListener('pointermove', function (event) {
       if (!drawing) { return; }
@@ -266,21 +394,29 @@
     canvas.addEventListener('pointerup', function () { drawing = false; });
     canvas.addEventListener('pointercancel', function () { drawing = false; });
     byId('clear').addEventListener('click', function () {
-      ctx.clearRect(0, 0, width, 180);
+      ctx.clearRect(0, 0, width, height);
       signed = false;
+      placeholder.hidden = false;
     });
-    function fail(text) {
+    function fail(text, focus) {
       error.textContent = text;
       error.hidden = false;
       send.disabled = false;
       send.textContent = 'Assinar termo';
+      if (focus) {
+        focus.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (focus.focus) { focus.focus({ preventScroll: true }); }
+      }
     }
     form.addEventListener('submit', async function (event) {
       event.preventDefault();
+      if (send.disabled) { return; }
       error.hidden = true;
-      if (!documentOk()) { fail('Confira o CPF: os números não formam um CPF válido.'); form.document.focus(); return; }
-      if (!signed) { fail('Desenhe a assinatura antes de concluir.'); return; }
-      if (!form.accepted.checked) { fail('Confirme que conferiu os dados do termo.'); return; }
+      var cpf = form.document_type.value === 'CPF';
+      if (!nameOk()) { fail('Escreva o nome completo de quem está retirando.', form.signer_name); return; }
+      if (!documentOk()) { fail(cpf ? 'Confira o CPF: os números não formam um CPF válido.' : 'Confira o RG: ele tem de 7 a 10 caracteres.', form.document); return; }
+      if (!signed) { canvas.classList.add('is-bad'); fail('Desenhe a assinatura antes de concluir.', canvas); return; }
+      if (!form.accepted.checked) { fail('Marque que conferiu os dados do termo.', form.accepted); return; }
       send.disabled = true;
       send.textContent = 'Registrando assinatura...';
       try {
@@ -288,7 +424,7 @@
           action: 'sign',
           token: token,
           form: {
-            signer_name: form.signer_name.value,
+            signer_name: form.signer_name.value.trim(),
             document_type: form.document_type.value,
             document: form.document.value,
             signature_png: canvas.toDataURL('image/png'),
