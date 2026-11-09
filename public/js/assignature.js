@@ -518,3 +518,27 @@
         submit.textContent = 'Registrando assinaturas...';
     });
 }());
+
+// Relatório das máquinas em tela cheia, para quem vai assinar conferir no tablet.
+(function () {
+    var modal = document.querySelector('[data-machine-report]');
+    var opener = document.querySelector('[data-machine-report-open]');
+    if (!modal || !opener) { return; }
+    function close() {
+        modal.hidden = true;
+        document.body.classList.remove('as-report-locked');
+        opener.focus();
+    }
+    opener.addEventListener('click', function () {
+        modal.hidden = false;
+        document.body.classList.add('as-report-locked');
+        modal.querySelector('.as-report-body').scrollTop = 0;
+        modal.querySelector('.as-report-close').focus();
+    });
+    modal.querySelectorAll('[data-machine-report-close]').forEach(function (button) {
+        button.addEventListener('click', close);
+    });
+    document.addEventListener('keydown', function (event) {
+        if (event.key === 'Escape' && !modal.hidden) { close(); }
+    });
+}());

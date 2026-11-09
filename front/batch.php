@@ -140,6 +140,14 @@ $termLabels = PluginAssignatureBatch::termLabels($requests);
 $sourceIds = array_values(array_unique(array_map('intval', array_column($requests, 'sources_id'))));
 $technicians = $batch === null ? PluginAssignatureTechnician::availableForSources($sourceIds) : [];
 $technicianName = $batch !== null ? PluginAssignatureBatch::technicianName($batch) : '';
+// Relatório das máquinas para mostrar a quem vai assinar, antes da assinatura.
+$reportRows = $batch === null ? PluginAssignatureBatch::termRows($requests) : [];
+$reportLabels = PluginAssignatureBatch::termLabels($requests);
+$reportTone = static function (string $status): string {
+    $status = mb_strtolower($status);
+    return str_contains($status, 'conclu') ? 'is-done'
+        : (str_contains($status, 'inserv') ? 'is-bad' : (str_contains($status, 'garantia') ? 'is-warn' : 'is-neutral'));
+};
 $entityContacts = $batch === null && PluginAssignatureRemote::configured()
     ? PluginAssignatureRemote::entityEmails($requests)
     : ['available' => false, 'emails' => [], 'missing' => []];
@@ -210,11 +218,35 @@ echo "<script>document.title = 'Assignat-ure';</script>";
                     </div>
                 </div>
                 <div data-step="3" hidden><p class="as-step-label">4 de 5 · Documento</p><h3 data-document-heading>Digite o documento</h3><label>Número do documento<input name="signer_document" data-document-input inputmode="numeric" autocomplete="off" maxlength="14" placeholder="000.000.000-00" required></label><div class="as-keypad" data-keypad><?php foreach (['1','2','3','4','5','6','7','8','9','X','0','⌫'] as $key): ?><button type="button" data-key="<?= assignature_h($key) ?>"><?= assignature_h($key) ?></button><?php endforeach; ?></div><p class="as-hint">CPF é conferido pelos dígitos verificadores. O RG varia conforme o estado.</p></div>
-                <div data-step="4" hidden><p class="as-step-label">5 de 5 · Assinatura</p><h3>Assine com o dedo, mouse ou caneta</h3><p class="as-hint">Esta assinatura será vinculada a todos os <?= count($requests) ?> pedidos acima.</p><div class="as-signature-field"><span>Assinatura de quem retira</span><canvas data-signature-canvas aria-label="Área para desenhar a assinatura"></canvas><button type="button" class="as-text-button" data-signature-clear>Limpar assinatura</button></div><label class="as-checkbox"><input type="checkbox" name="accepted" value="1" required> Confirmei a identidade e os dados de todos os pedidos</label></div>
+                <div data-step="4" hidden><p class="as-step-label">5 de 5 · Assinatura</p><h3>Assine com o dedo, mouse ou caneta</h3><?php if ($reportRows !== []): ?><button type="button" class="as-button as-button-light as-report-open" data-machine-report-open><i class="ti ti-report-search"></i> Ver relatório <?= $reportLabels['show_status'] ? 'das máquinas' : 'dos itens' ?></button><?php endif; ?><p class="as-hint">Esta assinatura será vinculada a todos os <?= count($requests) ?> pedidos acima.</p><div class="as-signature-field"><span>Assinatura de quem retira</span><canvas data-signature-canvas aria-label="Área para desenhar a assinatura"></canvas><button type="button" class="as-text-button" data-signature-clear>Limpar assinatura</button></div><label class="as-checkbox"><input type="checkbox" name="accepted" value="1" required> Confirmei a identidade e os dados de todos os pedidos</label></div>
                 <p class="as-form-error" data-signature-error hidden></p>
                 <div class="as-flow-actions"><button type="button" class="as-button as-button-light" data-step-back hidden>Voltar</button><button type="button" class="as-button" data-step-next>Continuar</button><button type="submit" class="as-button" data-final-submit hidden>Concluir <?= count($requests) ?> assinatura(s)</button></div>
             </form>
         </section>
+        <?php if ($reportRows !== []): ?>
+            <div class="as-report-modal" data-machine-report hidden role="dialog" aria-modal="true" aria-labelledby="as-report-title">
+                <div class="as-report-backdrop" data-machine-report-close></div>
+                <div class="as-report-box">
+                    <header class="as-report-head">
+                        <div><p class="as-eyebrow">RELATÓRIO</p><h2 id="as-report-title"><?= $reportLabels['show_status'] ? 'Como estão as máquinas' : 'Itens deste termo' ?></h2><p><?= count($reportRows) ?> <?= assignature_h($reportLabels['unit']) ?> · <?= count($requests) ?> pedido(s)</p></div>
+                        <button type="button" class="as-report-close" data-machine-report-close aria-label="Fechar relatório"><i class="ti ti-x"></i></button>
+                    </header>
+                    <div class="as-report-body">
+                        <?php foreach ($reportRows as $index => $row): ?>
+                            <article class="as-report-item">
+                                <div class="as-report-item-head">
+                                    <strong><?= $index + 1 ?>. <?= assignature_h($row['name']) ?></strong>
+                                    <?php if ($reportLabels['show_status']): ?><span class="as-report-status <?= $reportTone((string) $row['status']) ?>"><?= assignature_h($row['status']) ?></span><?php endif; ?>
+                                </div>
+                                <small>#<?= assignature_h($row['code']) ?><?= (string) $row['type'] !== '' && (string) $row['type'] !== (string) $row['name'] ? ' · ' . assignature_h($row['type']) : '' ?></small>
+                                <p><?= (string) $row['report'] !== '' ? nl2br(assignature_h($row['report'])) : '<span class="as-report-empty">Sem observações.</span>' ?></p>
+                            </article>
+                        <?php endforeach; ?>
+                    </div>
+                    <footer class="as-report-foot"><button type="button" class="as-button" data-machine-report-close>Voltar para a assinatura</button></footer>
+                </div>
+            </div>
+        <?php endif; ?>
     <?php else: ?>
         <section class="as-panel as-paper-term" id="termo">
             <div class="as-term-heading"><img src="<?= assignature_h(assignature_logo_url()) ?>" alt="" class="as-term-logo"><div><p class="as-eyebrow">[URE] ASSIGNAT-URE</p><h2><?= assignature_h($termLabels['title']) ?></h2><p>Lote #<?= $batchId ?> · <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['created_at'], true)) ?></p></div></div>
