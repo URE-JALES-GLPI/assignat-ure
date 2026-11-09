@@ -21,11 +21,20 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             if ((string) ($_POST['method'] ?? '') === 'appscript') {
                 PluginAssignatureRemote::send($batchId);
                 assignature_flash('Link de assinatura enviado por e-mail.');
+            } elseif ((string) ($_POST['method'] ?? '') === 'digital') {
+                // Assinar agora não imprime sozinho: o termo vai por e-mail e o botão Imprimir fica na tela.
+                try {
+                    $recipients = PluginAssignatureRemote::deliverReceipt($batchId);
+                    assignature_flash($recipients === []
+                        ? 'Assinatura registrada.'
+                        : 'Assinatura registrada. Termo enviado por e-mail para ' . implode(', ', $recipients) . '.');
+                } catch (Throwable $e) {
+                    assignature_flash('Assinatura registrada, mas o e-mail não foi enviado: ' . $e->getMessage()
+                        . ' O sistema tentará de novo.', false);
+                }
             } else {
                 $job = PluginAssignatureBatch::printTerm($batchId, $userId);
-                assignature_flash((string) ($_POST['method'] ?? '') === 'paper'
-                    ? 'Termo enviado à impressora (1 cópia). ' . $job . ' Após a assinatura à mão, envie o arquivo.'
-                    : 'Assinatura registrada e termo enviado à impressora (2 cópias). ' . $job);
+                assignature_flash('Termo enviado à impressora (1 cópia). ' . $job . ' Após a assinatura à mão, envie o arquivo.');
             }
         } elseif ($action === 'upload') {
             PluginAssignatureBatch::upload(
@@ -68,6 +77,13 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $redirectUrl = assignature_url('/front/batch.php?' . http_build_query([
                 'ids' => $ids, 'method' => 'digital',
             ]));
+        } elseif ($action === 'receipt_copy') {
+            $batch = PluginAssignatureBatch::get($batchId);
+            if ($batch === null || !PluginAssignatureBatch::canManage($batch, $userId)) {
+                throw new RuntimeException('Termo não encontrado.');
+            }
+            PluginAssignatureRemote::sendCopy($batchId, (string) ($_POST['copy_email'] ?? ''));
+            assignature_flash('Termo enviado para ' . strtolower(trim((string) ($_POST['copy_email'] ?? ''))) . '.');
         } elseif ($action === 'print') {
             $job = PluginAssignatureBatch::printTerm($batchId, $userId);
             assignature_flash('Termo enviado para ' . PluginAssignatureBatch::printerQueue() . '. ' . $job);
@@ -212,7 +228,7 @@ echo "<script>document.title = 'Assignat-ure';</script>";
             <p class="as-term-foot">[URE] Assignat-ure · Termo #<?= $batchId ?> · <?= ['done' => 'Assinatura registrada', 'awaiting_remote' => 'Aguardando assinatura por e-mail'][(string) $batch['status']] ?? 'Aguardando assinatura no papel' ?></p>
         </section>
         <div class="as-batch-actions as-print-hide">
-             <?php if (((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload') || ((string) $batch['method'] === 'digital' && (string) $batch['status'] === 'done')): ?><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="print"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button type="submit" class="as-button"><i class="ti ti-printer"></i> <?= empty($batch['printed_at']) ? 'Enviar' : 'Reimprimir' ?> para <?= assignature_h(PluginAssignatureBatch::printerQueue()) ?> (<?= (string) $batch['method'] === 'digital' ? '2 cópias' : '1 cópia' ?>)</button></form><?php endif; ?>
+             <?php if (((string) $batch['method'] === 'paper' && (string) $batch['status'] === 'awaiting_upload') || ((string) $batch['method'] === 'digital' && (string) $batch['status'] === 'done')): ?><form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="print"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button type="submit" class="as-button"><i class="ti ti-printer"></i> <?= (string) $batch['method'] === 'digital' ? (empty($batch['printed_at']) ? 'Imprimir' : 'Imprimir de novo') : (empty($batch['printed_at']) ? 'Enviar' : 'Reimprimir') ?> em <?= assignature_h(PluginAssignatureBatch::printerQueue()) ?> (<?= (string) $batch['method'] === 'digital' ? '2 cópias' : '1 cópia' ?>)</button></form><?php endif; ?>
             <?php if ((string) $batch['status'] === 'done' && (string) $batch['method'] === 'paper'): ?><a class="as-button as-button-light" href="<?= assignature_h(assignature_url('/front/file.php?id=' . $batchId)) ?>"><i class="ti ti-download"></i> Ver arquivo assinado</a><?php endif; ?>
         </div>
         <?php if ((string) $batch['status'] === 'awaiting_remote'): ?>
@@ -225,6 +241,22 @@ echo "<script>document.title = 'Assignat-ure';</script>";
                     <form method="post"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="remote_resend"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-button as-button-light" type="submit"><i class="ti ti-mail-forward"></i> Reenviar link</button></form>
                 </div>
                 <form method="post" class="as-cancel-form" onsubmit="return confirm('Cancelar o termo, invalidar o link e liberar os pedidos para uma nova assinatura?')"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="cancel"><input type="hidden" name="batch_id" value="<?= $batchId ?>"><button class="as-text-button">Cancelar termo</button></form>
+            </section>
+        <?php endif; ?>
+        <?php if ((string) $batch['status'] === 'done' && (string) $batch['method'] === 'digital'):
+            $receiptTo = array_values(array_filter(array_merge([(string) ($batch['signer_email'] ?? '')], explode(',', (string) ($batch['receipt_recipients'] ?? '')))));
+            ?>
+            <section class="as-panel as-receipt-panel as-print-hide">
+                <h2>Termo por e-mail</h2>
+                <?php if ($receiptTo !== [] && !empty($batch['remote_receipt_sent_at'])): ?>
+                    <p class="as-hint">Enviado em <?= assignature_h(PluginAssignatureBatch::formatDate((string) $batch['remote_receipt_sent_at'], true)) ?> para <?= assignature_h(implode(', ', $receiptTo)) ?>.</p>
+                <?php elseif ($receiptTo !== []): ?>
+                    <p class="as-hint">Aguardando envio para <?= assignature_h(implode(', ', $receiptTo)) ?>. O sistema tenta a cada minuto.</p>
+                <?php endif; ?>
+                <form method="post" class="as-form as-receipt-copy"><?= assignature_csrf_field() ?><input type="hidden" name="action" value="receipt_copy"><input type="hidden" name="batch_id" value="<?= $batchId ?>">
+                    <label>Enviar para outro e-mail<input type="email" name="copy_email" maxlength="255" required autocomplete="off" placeholder="nome@exemplo.gov.br"></label>
+                    <button class="as-button" type="submit"><i class="ti ti-send"></i> Enviar termo</button>
+                </form>
             </section>
         <?php endif; ?>
         <?php if ((string) $batch['status'] === 'done' && (string) ($batch['signer_email'] ?? '') !== '' && empty($batch['remote_receipt_sent_at'])): ?>

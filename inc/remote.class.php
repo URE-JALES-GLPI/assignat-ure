@@ -38,6 +38,83 @@ class PluginAssignatureRemote
         return self::url() !== '' && self::secret() !== '';
     }
 
+    /** E-mail que recebe cópia de todo termo do Tralla assinado na tela. */
+    public static function copyEmail(): string
+    {
+        return (string) (self::settings()['receipt_copy_email'] ?? '');
+    }
+
+    public static function saveCopyEmail(string $email): void
+    {
+        global $DB;
+        $email = strtolower(trim($email));
+        if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException('Informe um e-mail válido para a cópia dos termos.');
+        }
+        $row = $DB->request(['SELECT' => ['id'], 'FROM' => self::SETTINGS, 'LIMIT' => 1])->current();
+        if (is_array($row)) {
+            $DB->update(self::SETTINGS, ['receipt_copy_email' => $email], ['id' => (int) $row['id']]);
+        } else {
+            $DB->insert(self::SETTINGS, ['receipt_copy_email' => $email]);
+        }
+    }
+
+    /**
+     * Destinos do termo assinado na tela: nos pedidos do Tralla, a cópia fixa e os e-mails
+     * cadastrados para a escola do card (Contatos do Tralla, guardados no pedido).
+     */
+    private static function receiptRecipients(array $requests): array
+    {
+        $emails = [];
+        foreach ($requests as $request) {
+            $source = PluginAssignatureSource::get((int) $request['sources_id']);
+            if ($source === null || (string) $source['adapter'] !== 'tralla') {
+                continue;
+            }
+            $emails[] = self::copyEmail();
+            $payload = json_decode((string) ($request['payload_json'] ?? ''), true);
+            foreach ((array) ($payload['contacts']['email'] ?? []) as $contact) {
+                $emails[] = is_array($contact) ? (string) ($contact['email'] ?? '') : '';
+            }
+        }
+        $emails = array_map(static fn (string $email): string => strtolower(trim($email)), $emails);
+        return array_values(array_unique(array_filter($emails,
+            static fn (string $email): bool => filter_var($email, FILTER_VALIDATE_EMAIL) !== false)));
+    }
+
+    /** Envia o termo recém-assinado na tela. Falhou: a tarefa automática tenta de novo. */
+    public static function deliverReceipt(int $batchId): array
+    {
+        global $DB;
+        $recipients = self::receiptRecipients(PluginAssignatureBatch::requests($batchId));
+        if ($recipients === []) {
+            return [];
+        }
+        $DB->update(PluginAssignatureBatch::TABLE, ['receipt_recipients' => implode(',', $recipients)], ['id' => $batchId]);
+        self::sendReceipt(PluginAssignatureBatch::get($batchId));
+        return $recipients;
+    }
+
+    /** Cópia avulsa para um e-mail digitado depois da assinatura. */
+    public static function sendCopy(int $batchId, string $email): void
+    {
+        global $DB;
+        $email = strtolower(trim($email));
+        if (mb_strlen($email) > 255 || filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            throw new RuntimeException('Informe um e-mail válido.');
+        }
+        $batch = PluginAssignatureBatch::get($batchId);
+        if ($batch === null || (string) $batch['status'] !== 'done' || (string) $batch['method'] !== 'digital') {
+            throw new RuntimeException('Só termos assinados na tela podem ser enviados por e-mail.');
+        }
+        self::sendReceipt($batch, [$email]);
+        $sent = array_filter(explode(',', (string) ($batch['receipt_recipients'] ?? '')));
+        if (!in_array($email, $sent, true) && !empty($batch['remote_receipt_sent_at'])) {
+            $sent[] = $email;
+            $DB->update(PluginAssignatureBatch::TABLE, ['receipt_recipients' => implode(',', $sent)], ['id' => $batchId]);
+        }
+    }
+
     public static function validUrl(string $url): bool
     {
         return preg_match('~^https://script\.google\.com/(a/macros/[A-Za-z0-9.-]+/|macros/)s/[A-Za-z0-9_-]+/exec$~D', $url) === 1;
@@ -222,10 +299,10 @@ class PluginAssignatureRemote
     public static function sync(): int
     {
         global $DB;
+        $count = self::sendPendingReceipts();
         if (!self::configured()) {
-            return 0;
+            return $count;
         }
-        $count = 0;
         $done = [];
         foreach ((array) (self::call('signed')['signed'] ?? []) as $row) {
             $token = is_array($row) ? (string) ($row['token'] ?? '') : '';
@@ -260,10 +337,19 @@ class PluginAssignatureRemote
             self::remove((string) $batch['remote_token']);
             $count++;
         }
+        return $count;
+    }
+
+    /** Comprovantes ainda não enviados (link por e-mail ou assinatura na tela), por até 7 dias. */
+    private static function sendPendingReceipts(): int
+    {
+        global $DB;
+        $count = 0;
         foreach ($DB->request([
             'FROM' => PluginAssignatureBatch::TABLE,
             'WHERE' => [
-                'status' => 'done', 'signer_email' => ['!=', ''], 'remote_receipt_sent_at' => null,
+                'status' => 'done', 'remote_receipt_sent_at' => null,
+                'OR' => ['signer_email' => ['!=', ''], 'receipt_recipients' => ['!=', '']],
                 'completed_at' => ['>', date('Y-m-d H:i:s', time() - 7 * 86400)],
             ],
             'LIMIT' => 20,
@@ -278,7 +364,8 @@ class PluginAssignatureRemote
         return $count;
     }
 
-    private static function sendReceipt(array $batch): void
+    /** $only: envia só para esses e-mails, sem marcar o comprovante automático como enviado. */
+    private static function sendReceipt(array $batch, ?array $only = null): void
     {
         global $DB;
         $batchId = (int) $batch['id'];
@@ -290,21 +377,28 @@ class PluginAssignatureRemote
         $term = PluginAssignatureBatch::termPdf($batch, $requests);
         $signedAt = PluginAssignatureBatch::formatDate((string) $batch['completed_at'], true);
         $hash = (string) $batch['remote_term_sha256'];
+        $to = $only ?? array_values(array_unique(array_filter(array_merge(
+            [(string) $batch['signer_email']], explode(',', (string) ($batch['receipt_recipients'] ?? ''))
+        ))));
+        if ($to === []) {
+            throw new RuntimeException('Nenhum e-mail para enviar o termo.');
+        }
         $cc = [];
         $creator = new User();
-        if ($creator->getFromDB((int) $batch['created_by_users_id'])) {
+        if ($only === null && $creator->getFromDB((int) $batch['created_by_users_id'])) {
             $cc[] = trim((string) $creator->getDefaultEmail());
         }
+        $cc = array_values(array_diff(array_filter($cc), $to));
         $fact = static fn (string $label, string $value): string => '<tr><td style="color:#6b778c;padding:3px 12px 3px 0;vertical-align:top">'
             . assignature_h($label) . '</td><td style="padding:3px 0">' . assignature_h($value) . '</td></tr>';
-        self::mail([(string) $batch['signer_email']], array_values(array_filter($cc)),
+        self::mail($to, $cc,
             'Termo de entrega assinado',
             self::layout('Termo assinado',
                 '<p>O termo de entrega foi assinado. A cópia completa está em anexo, em PDF.</p>'
                 . '<table cellpadding="0" cellspacing="0" style="font-size:14px;margin:12px 0">'
                 . $fact('Termo:', '#' . $batchId)
                 . $fact('Assinado por:', (string) $batch['signer_name'])
-                . $fact('E-mail do link:', (string) $batch['signer_email'])
+                . ((string) $batch['signer_email'] !== '' ? $fact('E-mail do link:', (string) $batch['signer_email']) : '')
                 . $fact('Data e hora:', $signedAt)
                 . $fact('Técnico:', PluginAssignatureBatch::technicianName($batch))
                 . '</table>'
@@ -315,9 +409,11 @@ class PluginAssignatureRemote
             "Termo de entrega #{$batchId} assinado por {$batch['signer_name']} em {$signedAt}.\nCódigo de verificação (SHA-256): {$hash}\nA cópia completa está no PDF em anexo.",
             ['content' => $term['content'], 'name' => 'termo-assinado-' . $batchId . '.pdf'],
             $signature);
-        $DB->update(PluginAssignatureBatch::TABLE, [
-            'remote_receipt_sent_at' => assignature_now(), 'remote_error' => '',
-        ], ['id' => $batchId]);
+        if ($only === null) {
+            $DB->update(PluginAssignatureBatch::TABLE, [
+                'remote_receipt_sent_at' => assignature_now(), 'remote_error' => '',
+            ], ['id' => $batchId]);
+        }
     }
 
     private static function items(array $rows, array $labels): string

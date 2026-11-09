@@ -65,6 +65,7 @@ function plugin_assignature_install(): bool
         'remote_error' => 'TEXT DEFAULT NULL',
         'remote_term_sha256' => "CHAR(64) NOT NULL DEFAULT ''",
         'remote_receipt_sent_at' => 'DATETIME DEFAULT NULL',
+        'receipt_recipients' => 'TEXT DEFAULT NULL',
     ] as $field => $definition) {
         if (!$DB->fieldExists('glpi_plugin_assignature_batches', $field)) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_assignature_batches` ADD `{$field}` {$definition}") or die($DB->error());
@@ -102,6 +103,7 @@ function plugin_assignature_install(): bool
     foreach ([
         'appscript_url' => "VARCHAR(255) NOT NULL DEFAULT ''",
         'appscript_secret_encrypted' => 'TEXT DEFAULT NULL',
+        'receipt_copy_email' => "VARCHAR(255) NOT NULL DEFAULT 'jal.seintec@educacao.sp.gov.br'",
     ] as $field => $definition) {
         if (!$DB->fieldExists('glpi_plugin_assignature_settings', $field)) {
             $DB->doQuery("ALTER TABLE `glpi_plugin_assignature_settings` ADD `{$field}` {$definition}") or die($DB->error());
